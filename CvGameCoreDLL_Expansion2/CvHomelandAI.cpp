@@ -1243,9 +1243,14 @@ void CvHomelandAI::PlotWorkerCoverMoves()
 CvPlot* CvHomelandAI::GetWorkerEndPlot(CvUnit* pUnit, const BuilderDirective& kDirective)
 {
 	CvPlot* pPlot = GC.getMap().plot(kDirective.m_sX, kDirective.m_sY);
-	if(pPlot && pPlot != pUnit->plot() && pUnit->GeneratePath(pPlot))
+	if(pPlot && pPlot != pUnit->plot())
 	{
-		return pUnit->GetPathEndTurnPlot();
+		bool bMajorWorker = !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && pUnit->AI_getUnitAIType() == UNITAI_WORKER;
+		if(pUnit->GeneratePath(pPlot, bMajorWorker ? MOVE_UNITS_IGNORE_DANGER : 0))
+		{
+			return pUnit->GetPathEndTurnPlot();
+		}
+		return bMajorWorker ? NULL : pPlot;
 	}
 	return pPlot;
 }
@@ -5681,13 +5686,17 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 			{
 				strLogString.Format("Worker (%d) job at X: %d, Y: %d, from X: %d, Y: %d, end X: %d, Y: %d, danger %d, reach %d, hazard %d", pUnit->GetID(), aDirective[0].m_sX, aDirective[0].m_sY, pUnit->getX(), pUnit->getY(), pEndPlot->getX(), pEndPlot->getY(), m_pPlayer->GetPlotDanger(*pEndPlot), m_pPlayer->IsPlotReachableByVisibleEnemy(*pEndPlot) ? 1 : 0, m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot) ? 1 : 0);
 			}
+			else if(bHasDirective)
+			{
+				strLogString.Format("Worker (%d) no path to job at X: %d, Y: %d", pUnit->GetID(), aDirective[0].m_sX, aDirective[0].m_sY);
+			}
 			else
 			{
 				strLogString.Format("Worker (%d) no safe job, at X: %d, Y: %d, danger %d, reach %d", pUnit->GetID(), pUnit->getX(), pUnit->getY(), m_pPlayer->GetPlotDanger(*pUnit->plot()), m_pPlayer->IsPlotReachableByVisibleEnemy(*pUnit->plot()) ? 1 : 0);
 			}
 			LogHomelandMessage(strLogString);
 		}
-		if(pEndPlot && m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot))
+		if(bHasDirective && (!pEndPlot || m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot)))
 		{
 			if(!pUnit->plot()->isCity() || IsCivilianSpotTaken(pUnit, pUnit->plot()))
 			{
@@ -5698,7 +5707,7 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 			if(GC.getLogging() && GC.getAILogging())
 			{
 				CvString strLogString;
-				strLogString.Format("Worker holds back, end plot not covered, X: %d, Y: %d", pEndPlot->getX(), pEndPlot->getY());
+				strLogString.Format("Worker holds back, end plot not covered, X: %d, Y: %d", pEndPlot ? pEndPlot->getX() : aDirective[0].m_sX, pEndPlot ? pEndPlot->getY() : aDirective[0].m_sY);
 				LogHomelandMessage(strLogString);
 			}
 			return true;
@@ -5836,7 +5845,8 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 			}
 			else
 			{
-				pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), aDirective[0].m_sX, aDirective[0].m_sY, 0, false, false, MISSIONAI_BUILD, pPlot);
+				bool bMajorWorker = !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && pUnit->AI_getUnitAIType() == UNITAI_WORKER;
+				pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), aDirective[0].m_sX, aDirective[0].m_sY, bMajorWorker ? MOVE_UNITS_IGNORE_DANGER : 0, false, false, MISSIONAI_BUILD, pPlot);
 				pUnit->finishMoves();
 				UnitProcessed(pUnit->GetID());
 			}
