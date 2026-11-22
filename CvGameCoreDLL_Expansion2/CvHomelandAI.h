@@ -190,6 +190,8 @@ private:
 //!  - Handles moves for all military units not recruited by the tactical or operational AI
 //!  - Also handles moves for workers and explorers (and settlers on the first turn)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+struct BuilderDirective;
+
 class CvHomelandAI
 {
 public:
@@ -236,6 +238,10 @@ private:
 	void PlotMobileReserveMoves();
 	void PlotSentryMoves();
 	void PlotWorkerMoves();
+	void PlotWorkerGuardMoves();
+	void PlotWorkerCoverMoves();
+	CvPlot* GetWorkerEndPlot(CvUnit* pUnit, const BuilderDirective& kDirective);
+	UnitHandle FindWorkerGuard(CvPlot* pPlot);
 	void PlotWorkerSeaMoves();
 	void PlotPatrolMoves();
 	void PlotUpgradeMoves();

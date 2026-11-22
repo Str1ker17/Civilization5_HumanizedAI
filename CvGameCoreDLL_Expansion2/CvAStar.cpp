@@ -894,7 +894,7 @@ int PathDestValid(int iToX, int iToY, const void* pointer, CvAStar* finder)
 
 	if(!bAIControl && !pCacheData->isHuman() && (pUnit->AI_getUnitAIType() == UNITAI_SETTLE || pUnit->AI_getUnitAIType() == UNITAI_WORKER) && !(finder->GetInfo() & MOVE_UNITS_IGNORE_DANGER))
 	{
-		if(GET_PLAYER(pUnit->getOwner()).GetPlotDanger(*pToPlot) > 0)
+		if(GET_PLAYER(pUnit->getOwner()).IsUnsafeForCivilians(*pToPlot))
 		{
 			return FALSE;
 		}
@@ -1282,7 +1282,8 @@ int PathValid(CvAStarNode* parent, CvAStarNode* node, int data, const void* poin
 
 	// pulling invariants out of the loop
 	bool bAIControl = pCacheData->IsAutomated();
-	bool bAvoidDanger = bAIControl || (!pCacheData->isHuman() && (pUnit->AI_getUnitAIType() == UNITAI_SETTLE || pUnit->AI_getUnitAIType() == UNITAI_WORKER));
+	bool bAICivilian = !bAIControl && !pCacheData->isHuman() && (pUnit->AI_getUnitAIType() == UNITAI_SETTLE || pUnit->AI_getUnitAIType() == UNITAI_WORKER);
+	bool bAvoidDanger = bAIControl || bAICivilian;
 	int iUnitX = pUnit->getX();
 	int iUnitY = pUnit->getY();
 	DomainTypes unit_domain_type = pCacheData->getDomainType();
@@ -1504,7 +1505,7 @@ int PathValid(CvAStarNode* parent, CvAStarNode* node, int data, const void* poin
 			{
 				if(!bUnitIsCombat || pUnit->getArmyID() == FFreeList::INVALID_INDEX)
 				{
-					if(GET_PLAYER(unit_owner).GetPlotDanger(*pFromPlot) > 0)
+					if(GET_PLAYER(unit_owner).GetPlotDanger(*pFromPlot) > 0 || (bAICivilian && GET_PLAYER(unit_owner).IsCivilianHazard(*pFromPlot)))
 					{
 						return FALSE;
 					}

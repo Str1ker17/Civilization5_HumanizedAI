@@ -1820,7 +1820,17 @@ public:
 	CvPlot* GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea = -1) const;
 
 	bool IsSafeSettlePlot(CvPlot& kPlot) const;
-	void AddCivilianLoss(const CvPlot& kPlot);
+	bool IsNearBarbarianCamp(const CvPlot& kPlot, int iRange) const;
+	void UpdateEnemySightings();
+	void RecallExplorersForDefense();
+	void NoteWorkerGuardShortage();
+	int GetWorkerGuardShortage() const;
+	bool IsNearRecentEnemySighting(const CvPlot& kPlot, int iRange, int iTurns) const;
+	bool IsCivilianHazard(const CvPlot& kPlot) const;
+	bool IsWorkerEndPlotHazard(CvPlot& kPlot) const;
+	bool IsUnsafeForCivilians(CvPlot& kPlot) const;
+	void AddCivilianLoss(const CvPlot& kPlot, UnitTypes eUnit, PlayerTypes eCaptor);
+	void LogCivilianExposure();
 	bool IsNearRecentCivilianLoss(const CvPlot& kPlot, int iRange) const;
 	void SetMistakeHandicap(HandicapTypes eHandicap);
 	int GetMistakePercent() const;
@@ -2602,6 +2612,10 @@ protected:
 	HandicapTypes m_eMistakeHandicap;
 	std::vector<int> m_aiCivilianLossPlots;
 	std::vector<int> m_aiCivilianLossTurns;
+	std::vector<int> m_aiEnemySightingPlots;
+	std::vector<int> m_aiEnemySightingTurns;
+	int m_iWorkerGuardShortage;
+	int m_iWorkerGuardShortageTurn;
 	FAutoVariable<int, CvPlayer> m_iNumPolicies;
 	FAutoVariable<int, CvPlayer> m_iNumGreatPeople;
 	FAutoVariable<int, CvPlayer> m_iCityConnectionHappiness;

@@ -1752,7 +1752,7 @@ bool CvUnit::getCaptureDefinition(CvUnitCaptureDefinition* pkCaptureDef, PlayerT
 			CvPlayerAI& kCapturingPlayer = GET_PLAYER(kCaptureDef.eCapturingPlayer);
 			if(kCaptureDef.eOldPlayer != NO_PLAYER)
 			{
-				GET_PLAYER(kCaptureDef.eOldPlayer).AddCivilianLoss(*pkPlot);
+				GET_PLAYER(kCaptureDef.eOldPlayer).AddCivilianLoss(*pkPlot, kCaptureDef.eOldType, kCaptureDef.eCapturingPlayer);
 			}
 			if(kCapturingPlayer.isHuman() || kCapturingPlayer.AI_captureUnit(kCaptureDef.eCaptureUnitType, pkPlot) || 0 == GC.getAI_CAN_DISBAND_UNITS())
 			{

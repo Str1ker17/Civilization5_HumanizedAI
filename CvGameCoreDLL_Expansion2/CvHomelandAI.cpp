@@ -724,7 +724,9 @@ void CvHomelandAI::AssignHomelandMoves()
 			PlotSentryMoves();
 			break;
 		case AI_HOMELAND_MOVE_WORKER:
+			PlotWorkerCoverMoves();
 			PlotWorkerMoves();
+			PlotWorkerGuardMoves();
 			break;
 		case AI_HOMELAND_MOVE_WORKER_SEA:
 			PlotWorkerSeaMoves();
@@ -1156,6 +1158,158 @@ void CvHomelandAI::PlotWorkerMoves()
 	if(m_CurrentMoveUnits.size() > 0)
 	{
 		ExecuteWorkerMoves();
+	}
+}
+
+/// Army goes first: put a free combat unit on every dangerous plot where a worker wants to work this turn
+void CvHomelandAI::PlotWorkerCoverMoves()
+{
+	if(m_pPlayer->isHuman() || m_pPlayer->isMinorCiv() || m_pPlayer->isBarbarian())
+	{
+		return;
+	}
+
+	m_pPlayer->UpdateDangerPlots();
+
+	int iLoop;
+	for(CvUnit* pWorker = m_pPlayer->firstUnit(&iLoop); pWorker != NULL; pWorker = m_pPlayer->nextUnit(&iLoop))
+	{
+		if(pWorker->AI_getUnitAIType() != UNITAI_WORKER || pWorker->getDomainType() != DOMAIN_LAND)
+		{
+			continue;
+		}
+		BuilderDirective aDirective[1];
+		if(!m_pPlayer->GetBuilderTaskingAI()->EvaluateBuilder(pWorker, aDirective, 1))
+		{
+			continue;
+		}
+		CvPlot* pEndPlot = GetWorkerEndPlot(pWorker, aDirective[0]);
+		if(!pEndPlot || !m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot))
+		{
+			continue;
+		}
+		UnitHandle pGuard = FindWorkerGuard(pEndPlot);
+		if(!pGuard)
+		{
+			m_pPlayer->NoteWorkerGuardShortage();
+			continue;
+		}
+		pGuard->PushMission(CvTypes::getMISSION_MOVE_TO(), pEndPlot->getX(), pEndPlot->getY());
+		pGuard->finishMoves();
+		UnitProcessed(pGuard->GetID());
+		if(GC.getLogging() && GC.getAILogging())
+		{
+			CvString strLogString;
+			strLogString.Format("Guard %s covers worker target before workers move, X: %d, Y: %d", pGuard->getName().GetCString(), pEndPlot->getX(), pEndPlot->getY());
+			LogHomelandMessage(strLogString);
+		}
+	}
+
+	m_pPlayer->UpdateDangerPlots();
+}
+
+/// Plot where the worker will end this turn if it follows the directive
+CvPlot* CvHomelandAI::GetWorkerEndPlot(CvUnit* pUnit, const BuilderDirective& kDirective)
+{
+	CvPlot* pPlot = GC.getMap().plot(kDirective.m_sX, kDirective.m_sY);
+	if(pPlot && pPlot != pUnit->plot() && pUnit->GeneratePath(pPlot))
+	{
+		return pUnit->GetPathEndTurnPlot();
+	}
+	return pPlot;
+}
+
+/// Closest free combat unit that can reach this plot this turn
+UnitHandle CvHomelandAI::FindWorkerGuard(CvPlot* pPlot)
+{
+	UnitHandle pBestGuard;
+	int iBestDistance = MAX_INT;
+	for(list<int>::iterator it = m_CurrentTurnUnits.begin(); it != m_CurrentTurnUnits.end(); ++it)
+	{
+		UnitHandle pUnit = m_pPlayer->getUnit(*it);
+		if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX)
+		{
+			continue;
+		}
+		int iDistance = plotDistance(pUnit->getX(), pUnit->getY(), pPlot->getX(), pPlot->getY());
+		if(iDistance < iBestDistance && CanReachInXTurns(pUnit, pPlot, 1))
+		{
+			pBestGuard = pUnit;
+			iBestDistance = iDistance;
+		}
+	}
+	return pBestGuard;
+}
+
+/// Put a free combat unit on the tile of each worker that works in a dangerous area
+void CvHomelandAI::PlotWorkerGuardMoves()
+{
+	if(m_pPlayer->isHuman() || m_pPlayer->isMinorCiv() || m_pPlayer->isBarbarian())
+	{
+		return;
+	}
+
+	m_pPlayer->UpdateDangerPlots();
+
+	int iLoop;
+	for(CvUnit* pWorker = m_pPlayer->firstUnit(&iLoop); pWorker != NULL; pWorker = m_pPlayer->nextUnit(&iLoop))
+	{
+		if(pWorker->AI_getUnitAIType() != UNITAI_WORKER || pWorker->getDomainType() != DOMAIN_LAND || !pWorker->canMove())
+		{
+			continue;
+		}
+		CvPlot* pPlot = pWorker->plot();
+		if(pPlot && !pPlot->isCity() && pPlot->getNumDefenders(m_pPlayer->GetID()) == 0 && m_pPlayer->GetPlotDanger(*pPlot) > 0)
+		{
+			MoveCivilianToSafety(pWorker, false);
+		}
+	}
+
+	for(CvUnit* pWorker = m_pPlayer->firstUnit(&iLoop); pWorker != NULL; pWorker = m_pPlayer->nextUnit(&iLoop))
+	{
+		if(pWorker->AI_getUnitAIType() != UNITAI_WORKER || pWorker->getDomainType() != DOMAIN_LAND)
+		{
+			continue;
+		}
+		CvPlot* pPlot = pWorker->plot();
+		if(!pPlot || pPlot->isCity() || pPlot->getNumDefenders(m_pPlayer->GetID()) > 0)
+		{
+			continue;
+		}
+		if(m_pPlayer->GetPlotDanger(*pPlot) <= 0 && !m_pPlayer->IsNearRecentEnemySighting(*pPlot, 3, 5) && !m_pPlayer->IsNearBarbarianCamp(*pPlot, 3))
+		{
+			continue;
+		}
+
+		UnitHandle pBestGuard;
+		int iBestDistance = MAX_INT;
+		for(list<int>::iterator it = m_CurrentTurnUnits.begin(); it != m_CurrentTurnUnits.end(); ++it)
+		{
+			UnitHandle pUnit = m_pPlayer->getUnit(*it);
+			if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX)
+			{
+				continue;
+			}
+			int iDistance = plotDistance(pUnit->getX(), pUnit->getY(), pPlot->getX(), pPlot->getY());
+			if(iDistance < iBestDistance && CanReachInXTurns(pUnit, pPlot, 1))
+			{
+				pBestGuard = pUnit;
+				iBestDistance = iDistance;
+			}
+		}
+
+		if(pBestGuard)
+		{
+			pBestGuard->PushMission(CvTypes::getMISSION_MOVE_TO(), pPlot->getX(), pPlot->getY());
+			pBestGuard->finishMoves();
+			UnitProcessed(pBestGuard->GetID());
+			if(GC.getLogging() && GC.getAILogging())
+			{
+				CvString strLogString;
+				strLogString.Format("Guarding worker at X: %d, Y: %d with %s", pPlot->getX(), pPlot->getY(), pBestGuard->getName().GetCString());
+				LogHomelandMessage(strLogString);
+			}
+		}
 	}
 }
 
@@ -2786,7 +2940,7 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 					//   prefer the lowest danger value
 
 					iDanger = m_pPlayer->GetPlotDanger(*pPlot);
-					bool bIsZeroDanger = (iDanger <= 0);
+					bool bIsZeroDanger = (iDanger <= 0) && (pUnit->IsCombatUnit() || !m_pPlayer->IsCivilianHazard(*pPlot));
 					bool bIsInCity = pPlot->isFriendlyCity(*pUnit, false);
 					bool bIsInCover = (pPlot->getNumDefenders(m_pPlayer->GetID()) > 0) && !pUnit->IsCanDefend();
 					bool bIsInTerritory = (pPlot->getTeam() == m_pPlayer->getTeam());
@@ -5533,7 +5687,33 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 	BuilderDirective aDirective[ ciDirectiveSize ];
 
 	// evaluator
+	bool bCoveredWorker = !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && pUnit->AI_getUnitAIType() == UNITAI_WORKER;
+	if(bCoveredWorker)
+	{
+		m_pPlayer->GetBuilderTaskingAI()->SetAvoidHazard(true);
+	}
 	bool bHasDirective = m_pPlayer->GetBuilderTaskingAI()->EvaluateBuilder(pUnit, aDirective, ciDirectiveSize);
+	if(bCoveredWorker)
+	{
+		m_pPlayer->GetBuilderTaskingAI()->SetAvoidHazard(false);
+		CvPlot* pEndPlot = bHasDirective ? GetWorkerEndPlot(pUnit, aDirective[0]) : NULL;
+		if(pEndPlot && m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot))
+		{
+			if(!pUnit->plot()->isCity())
+			{
+				MoveCivilianToSafety(pUnit, false);
+			}
+			pUnit->finishMoves();
+			UnitProcessed(pUnit->GetID());
+			if(GC.getLogging() && GC.getAILogging())
+			{
+				CvString strLogString;
+				strLogString.Format("Worker holds back, end plot not covered, X: %d, Y: %d", pEndPlot->getX(), pEndPlot->getY());
+				LogHomelandMessage(strLogString);
+			}
+			return true;
+		}
+	}
 	if(bHasDirective)
 	{
 		switch(aDirective[0].m_eDirective)
@@ -5555,6 +5735,7 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 			{
 				eMission = CvTypes::getMISSION_MOVE_TO();
 			}
+
 
 			if(GC.getLogging() && GC.GetBuilderAILogging())
 			{

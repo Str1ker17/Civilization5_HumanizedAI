@@ -1593,6 +1593,10 @@ void CvPlayer::uninit()
 	m_eMistakeHandicap = NO_HANDICAP;
 	m_aiCivilianLossPlots.clear();
 	m_aiCivilianLossTurns.clear();
+	m_aiEnemySightingPlots.clear();
+	m_aiEnemySightingTurns.clear();
+	m_iWorkerGuardShortage = 0;
+	m_iWorkerGuardShortageTurn = -1;
 	m_iNumPolicies = 0;
 	m_iNumGreatPeople = 0;
 	m_iHolyCityID = -1;
@@ -5453,6 +5457,15 @@ void CvPlayer::doTurn()
 	doUpdateCacheOnTurn();
 
 	AI_doTurnPre();
+
+	if(!isHuman() && !isMinorCiv() && !isBarbarian())
+	{
+		UpdateEnemySightings();
+		if(CityStrategyAIHelpers::IsHomeDefenseShort(*this))
+		{
+			RecallExplorersForDefense();
+		}
+	}
 
 	if(getCultureBombTimer() > 0)
 		changeCultureBombTimer(-1);
@@ -29902,6 +29915,18 @@ void CvPlayer::Read(FDataStream& kStream)
 			kStream >> m_aiCivilianLossTurns[i];
 		}
 	}
+	if (uiVersion >= 1020)
+	{
+		int iNumSightings = 0;
+		kStream >> iNumSightings;
+		m_aiEnemySightingPlots.resize(iNumSightings);
+		m_aiEnemySightingTurns.resize(iNumSightings);
+		for(int i = 0; i < iNumSightings; i++)
+		{
+			kStream >> m_aiEnemySightingPlots[i];
+			kStream >> m_aiEnemySightingTurns[i];
+		}
+	}
 
 	if(GetID() < MAX_MAJOR_CIVS)
 	{
@@ -30696,6 +30721,12 @@ void CvPlayer::Write(FDataStream& kStream) const
 	{
 		kStream << m_aiCivilianLossPlots[i];
 		kStream << m_aiCivilianLossTurns[i];
+	}
+	kStream << (int)m_aiEnemySightingPlots.size();
+	for(uint i = 0; i < m_aiEnemySightingPlots.size(); i++)
+	{
+		kStream << m_aiEnemySightingPlots[i];
+		kStream << m_aiEnemySightingTurns[i];
 	}
 }
 
@@ -31723,6 +31754,7 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 	int iChosenTrueValue = 0;
 	CvPlot* pBestFoundPlot = NULL;
 
+	const int iLoneSettlerRange = 4;
 	int iEvalDistance = /*12*/ GC.getSETTLER_EVALUATION_DISTANCE();
 	int iDistanceDropoffMod = /*99*/ GC.getSETTLER_DISTANCE_DROPOFF_MODIFIER();
 
@@ -31788,7 +31820,7 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 		}
 
 		// Do we have to check if this is a safe place to go?
-		if(bEscorted || IsSafeSettlePlot(*pPlot))
+		if(bEscorted || (IsSafeSettlePlot(*pPlot) && (pPlot->getArea() != iUnitArea || ::plotDistance(pPlot->getX(), pPlot->getY(), iSettlerX, iSettlerY) <= iLoneSettlerRange)))
 		{
 			int iValue = pPlot->getFoundValue(eOwner);
 			if(iValue > 5000)
@@ -31834,27 +31866,161 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 //	--------------------------------------------------------------------------------
 bool CvPlayer::IsSafeSettlePlot(CvPlot& kPlot) const
 {
-	if(kPlot.isVisibleEnemyUnit(GetID()) || GetPlotDanger(kPlot) > 0 || IsNearRecentCivilianLoss(kPlot, 3))
+	if(kPlot.isVisibleEnemyUnit(GetID()) || GetPlotDanger(kPlot) > 0 || IsNearRecentCivilianLoss(kPlot, 3) || IsNearRecentEnemySighting(kPlot, 4, 10))
 		return false;
+	return !IsNearBarbarianCamp(kPlot, 2);
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsNearBarbarianCamp(const CvPlot& kPlot, int iRange) const
+{
 	ImprovementTypes eCamp = (ImprovementTypes)GC.getBARBARIAN_CAMP_IMPROVEMENT();
-	const int iRange = 2;
 	for(int iDX = -iRange; iDX <= iRange; iDX++)
 	{
 		for(int iDY = -iRange; iDY <= iRange; iDY++)
 		{
 			CvPlot* pLoopPlot = plotXYWithRangeCheck(kPlot.getX(), kPlot.getY(), iDX, iDY, iRange);
 			if(pLoopPlot && pLoopPlot->getRevealedImprovementType(getTeam()) == eCamp)
-				return false;
+				return true;
 		}
 	}
-	return true;
+	return false;
 }
 
 //	--------------------------------------------------------------------------------
-void CvPlayer::AddCivilianLoss(const CvPlot& kPlot)
+void CvPlayer::UpdateEnemySightings()
+{
+	const int iMemoryTurns = 10;
+	int iTurn = GC.getGame().getGameTurn();
+	for(int i = (int)m_aiEnemySightingPlots.size() - 1; i >= 0; i--)
+	{
+		if(iTurn - m_aiEnemySightingTurns[i] > iMemoryTurns)
+		{
+			m_aiEnemySightingPlots.erase(m_aiEnemySightingPlots.begin() + i);
+			m_aiEnemySightingTurns.erase(m_aiEnemySightingTurns.begin() + i);
+		}
+	}
+
+	for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
+	{
+		CvPlayer& kOther = GET_PLAYER((PlayerTypes)iPlayerLoop);
+		if(iPlayerLoop == GetID() || !kOther.isAlive() || !GET_TEAM(getTeam()).isAtWar(kOther.getTeam()))
+		{
+			continue;
+		}
+		int iLoop;
+		for(CvUnit* pLoopUnit = kOther.firstUnit(&iLoop); pLoopUnit != NULL; pLoopUnit = kOther.nextUnit(&iLoop))
+		{
+			CvPlot* pPlot = pLoopUnit->plot();
+			if(!pPlot || !pLoopUnit->IsCombatUnit() || !pPlot->isVisible(getTeam()) || pLoopUnit->isInvisible(getTeam(), false))
+			{
+				continue;
+			}
+			int iPlotIndex = pPlot->GetPlotIndex();
+			std::vector<int>::iterator it = std::find(m_aiEnemySightingPlots.begin(), m_aiEnemySightingPlots.end(), iPlotIndex);
+			if(it != m_aiEnemySightingPlots.end())
+			{
+				m_aiEnemySightingTurns[it - m_aiEnemySightingPlots.begin()] = iTurn;
+			}
+			else
+			{
+				m_aiEnemySightingPlots.push_back(iPlotIndex);
+				m_aiEnemySightingTurns.push_back(iTurn);
+			}
+		}
+	}
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::NoteWorkerGuardShortage()
+{
+	int iTurn = GC.getGame().getGameTurn();
+	if(m_iWorkerGuardShortageTurn != iTurn)
+	{
+		m_iWorkerGuardShortageTurn = iTurn;
+		m_iWorkerGuardShortage = 0;
+	}
+	m_iWorkerGuardShortage++;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetWorkerGuardShortage() const
+{
+	return (GC.getGame().getGameTurn() - m_iWorkerGuardShortageTurn <= 1) ? m_iWorkerGuardShortage : 0;
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::RecallExplorersForDefense()
+{
+	int iLoop;
+	for(CvUnit* pLoopUnit = firstUnit(&iLoop); pLoopUnit != NULL; pLoopUnit = nextUnit(&iLoop))
+	{
+		if(pLoopUnit->AI_getUnitAIType() == UNITAI_EXPLORE && pLoopUnit->getDomainType() == DOMAIN_LAND && pLoopUnit->getUnitInfo().GetUnitAIType(UNITAI_ATTACK))
+		{
+			pLoopUnit->AI_setUnitAIType(UNITAI_ATTACK);
+			if(GC.getLogging() && GC.getAILogging())
+			{
+				CvString strLogString;
+				strLogString.Format("Recalling exploring %s for home defense, X: %d, Y: %d", pLoopUnit->getName().GetCString(), pLoopUnit->getX(), pLoopUnit->getY());
+				GetHomelandAI()->LogHomelandMessage(strLogString);
+			}
+		}
+	}
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsNearRecentEnemySighting(const CvPlot& kPlot, int iRange, int iTurns) const
+{
+	int iTurn = GC.getGame().getGameTurn();
+	for(uint i = 0; i < m_aiEnemySightingPlots.size(); i++)
+	{
+		if(iTurn - m_aiEnemySightingTurns[i] > iTurns)
+			continue;
+		CvPlot* pSightingPlot = GC.getMap().plotByIndex(m_aiEnemySightingPlots[i]);
+		if(pSightingPlot && plotDistance(kPlot.getX(), kPlot.getY(), pSightingPlot->getX(), pSightingPlot->getY()) <= iRange)
+			return true;
+	}
+	return false;
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsCivilianHazard(const CvPlot& kPlot) const
+{
+	return IsNearBarbarianCamp(kPlot, 2);
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
+{
+	if(kPlot.isCity() || kPlot.getNumDefenders(GetID()) > 0)
+	{
+		return false;
+	}
+	return GetPlotDanger(kPlot) > 0 || IsNearRecentEnemySighting(kPlot, 3, 5) || IsNearBarbarianCamp(kPlot, 3);
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsUnsafeForCivilians(CvPlot& kPlot) const
+{
+	return GetPlotDanger(kPlot) > 0 || IsCivilianHazard(kPlot);
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::AddCivilianLoss(const CvPlot& kPlot, UnitTypes eUnit, PlayerTypes eCaptor)
 {
 	const int iMemoryTurns = 30;
 	int iTurn = GC.getGame().getGameTurn();
+	if(GC.getLogging() && GC.getAILogging() && !isHuman() && !isMinorCiv() && !isBarbarian())
+	{
+		FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedCivilianLog.csv", FILogFile::kDontTimeStamp);
+		CvUnitEntry* pkUnitInfo = (eUnit != NO_UNIT) ? GC.getUnitInfo(eUnit) : NULL;
+		if(pLog)
+		{
+			CvString strLog;
+			strLog.Format("%03d, %d, capture, %s, %d, %d, %d", iTurn, (int)GetID(), pkUnitInfo ? pkUnitInfo->GetType() : "?", kPlot.getX(), kPlot.getY(), (int)eCaptor);
+			pLog->Msg(strLog);
+		}
+	}
 	for(int i = (int)m_aiCivilianLossPlots.size() - 1; i >= 0; i--)
 	{
 		if(iTurn - m_aiCivilianLossTurns[i] > iMemoryTurns)
@@ -31865,6 +32031,68 @@ void CvPlayer::AddCivilianLoss(const CvPlot& kPlot)
 	}
 	m_aiCivilianLossPlots.push_back(kPlot.GetPlotIndex());
 	m_aiCivilianLossTurns.push_back(iTurn);
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::LogCivilianExposure()
+{
+	FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedCivilianLog.csv", FILogFile::kDontTimeStamp);
+	if(!pLog)
+		return;
+
+	int iTurn = GC.getGame().getGameTurn();
+	int iLoop;
+	for(CvUnit* pCivilian = firstUnit(&iLoop); pCivilian != NULL; pCivilian = nextUnit(&iLoop))
+	{
+		UnitAITypes eAI = pCivilian->AI_getUnitAIType();
+		if((eAI != UNITAI_WORKER && eAI != UNITAI_SETTLE) || pCivilian->getDomainType() != DOMAIN_LAND)
+			continue;
+		CvPlot* pPlot = pCivilian->plot();
+		if(!pPlot || pPlot->isCity())
+			continue;
+
+		int iCityDistance = 99;
+		int iCityLoop;
+		for(CvCity* pLoopCity = firstCity(&iCityLoop); pLoopCity != NULL; pLoopCity = nextCity(&iCityLoop))
+		{
+			iCityDistance = min(iCityDistance, plotDistance(pLoopCity->getX(), pLoopCity->getY(), pPlot->getX(), pPlot->getY()));
+		}
+
+		int iNearest = 99;
+		bool bNearestVisible = false;
+		int iNearestVisible = 99;
+		int iWithin2 = 0;
+		for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
+		{
+			CvPlayer& kOther = GET_PLAYER((PlayerTypes)iPlayerLoop);
+			if(iPlayerLoop == GetID() || !kOther.isAlive() || !GET_TEAM(getTeam()).isAtWar(kOther.getTeam()))
+				continue;
+			int iUnitLoop;
+			for(CvUnit* pEnemy = kOther.firstUnit(&iUnitLoop); pEnemy != NULL; pEnemy = kOther.nextUnit(&iUnitLoop))
+			{
+				if(!pEnemy->IsCombatUnit() || !pEnemy->plot())
+					continue;
+				int iDistance = plotDistance(pEnemy->getX(), pEnemy->getY(), pPlot->getX(), pPlot->getY());
+				bool bVisible = pEnemy->plot()->isVisible(getTeam()) && !pEnemy->isInvisible(getTeam(), false);
+				if(iDistance <= 2)
+					iWithin2++;
+				if(iDistance < iNearest)
+				{
+					iNearest = iDistance;
+					bNearestVisible = bVisible;
+				}
+				if(bVisible && iDistance < iNearestVisible)
+					iNearestVisible = iDistance;
+			}
+		}
+
+		CvString strLog;
+		strLog.Format("%03d, %d, exposure, %s, %d, %d, unit=%d city=%d own=%d build=%d guard=%d danger=%d hazard=%d nearest=%d nearestvis=%d visible=%d within2=%d",
+			iTurn, (int)GetID(), eAI == UNITAI_WORKER ? "worker" : "settler", pPlot->getX(), pPlot->getY(), pCivilian->GetID(), iCityDistance,
+			pPlot->getOwner() == GetID() ? 1 : 0, pCivilian->getBuildType() != NO_BUILD ? 1 : 0, pPlot->getNumDefenders(GetID()) > 0 ? 1 : 0,
+			GetPlotDanger(*pPlot), IsCivilianHazard(*pPlot) ? 1 : 0, iNearest, iNearestVisible, bNearestVisible ? 1 : 0, iWithin2);
+		pLog->Msg(strLog);
+	}
 }
 
 //	--------------------------------------------------------------------------------

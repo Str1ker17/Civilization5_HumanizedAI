@@ -667,6 +667,8 @@ bool CityStrategyAIHelpers::IsHomeDefenseShort(CvPlayer& kPlayer)
 		}
 	}
 
+	iNeeded += min(kPlayer.GetWorkerGuardShortage(), 2);
+
 	return iHave < iNeeded;
 }
 
@@ -831,6 +833,13 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 		// add in the weight of this unit as if I were deciding to build it without having a reason
 		iTempWeight += m_pUnitProductionAI->GetWeight(eUnitForOperation);
+
+		OperationSlot kOperationSlot = kPlayer.PeekAtNextUnitToBuildForOperationSlot(m_pCity->getArea());
+		CvAIOperation* pSlotOperation = kOperationSlot.IsValid() ? kPlayer.getAIOperation(kOperationSlot.m_iOperationID) : NULL;
+		if(pSlotOperation && pSlotOperation->GetOperationType() == AI_OPERATION_FOUND_CITY)
+		{
+			iTempWeight = 100000;
+		}
 
 		CvUnitEntry* pkUnitEntry = GC.getUnitInfo(eUnitForOperation);
 		if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_SETTLE)

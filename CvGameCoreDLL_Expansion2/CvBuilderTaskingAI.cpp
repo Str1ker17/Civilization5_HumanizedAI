@@ -44,6 +44,7 @@ void CvBuilderTaskingAI::Init(CvPlayer* pPlayer)
 
 	m_aiNonTerritoryPlots.clear();
 	m_bLogging = GC.getLogging() && GC.getAILogging() && GC.GetBuilderAILogging();
+	m_bAvoidHazard = false;
 	m_iNumCities = -1;
 	m_pTargetPlot = NULL;
 
@@ -97,8 +98,14 @@ void CvBuilderTaskingAI::Uninit(void)
 	m_eRepairBuild = NO_BUILD;
 	m_pPlayer = NULL;
 	m_bLogging = false;
+	m_bAvoidHazard = false;
 	m_iNumCities = -1;
 	m_pTargetPlot = NULL;
+}
+
+void CvBuilderTaskingAI::SetAvoidHazard(bool bAvoid)
+{
+	m_bAvoidHazard = bAvoid;
 }
 
 /// Serialization read
@@ -1803,7 +1810,7 @@ bool CvBuilderTaskingAI::ShouldBuilderConsiderPlot(CvUnit* pUnit, CvPlot* pPlot)
 		}
 	}
 
-	if(m_pPlayer->GetPlotDanger(*pPlot) > 0)
+	if(m_pPlayer->GetPlotDanger(*pPlot) > 0 || (!m_pPlayer->isHuman() && m_pPlayer->IsCivilianHazard(*pPlot)) || (m_bAvoidHazard && m_pPlayer->IsWorkerEndPlotHazard(*pPlot)))
 	{
 		if(m_bLogging)
 		{

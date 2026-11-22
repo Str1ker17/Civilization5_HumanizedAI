@@ -235,6 +235,20 @@ void CvPlayerAI::AI_unitUpdate()
 		LuaSupport::CallHook(pkScriptSystem, "PlayerPreAIUnitUpdate", args.get(), bResult);
 	}
 
+	static int s_iLastExposureTurn = -1;
+	if(isBarbarian() && GC.getLogging() && GC.getAILogging() && s_iLastExposureTurn != GC.getGame().getGameTurn())
+	{
+		s_iLastExposureTurn = GC.getGame().getGameTurn();
+		for(int iPlayerLoop = 0; iPlayerLoop < MAX_MAJOR_CIVS; iPlayerLoop++)
+		{
+			CvPlayer& kPlayer = GET_PLAYER((PlayerTypes)iPlayerLoop);
+			if(kPlayer.isAlive() && !kPlayer.isHuman())
+			{
+				kPlayer.LogCivilianExposure();
+			}
+		}
+	}
+
 	//GC.getGame().GetTacticalAnalysisMap()->RefreshDataForNextPlayer(this);
 
 	// this was a !hasBusyUnit around the entire rest of the function, so I tried to make it a bit flatter.
