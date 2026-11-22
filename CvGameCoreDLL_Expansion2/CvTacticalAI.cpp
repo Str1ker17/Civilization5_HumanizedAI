@@ -3889,7 +3889,18 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 			if(!pCivilian->GeneratePath(pOperation->GetTargetPlot(), iFlags, false /*bReuse*/))
 			{
 				pOperation->RetargetCivilian(pCivilian.pointer(), pThisArmy);
-				pCivilian->finishMoves();
+				if(pThisArmy->GetNumSlotsFilled() == 1 && m_pPlayer->GetPlotDanger(*(pCivilian->plot())) > 0)
+				{
+					m_CurrentMoveUnits.clear();
+					CvTacticalUnit unit;
+					unit.SetID(pCivilian->GetID());
+					m_CurrentMoveUnits.push_back(unit);
+					ExecuteMovesToSafestPlot();
+				}
+				else
+				{
+					pCivilian->finishMoves();
+				}
 				pEscort = m_pPlayer->getUnit(pThisArmy->GetNextUnitID());
 				if(pEscort)
 				{
