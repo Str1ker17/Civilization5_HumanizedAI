@@ -293,6 +293,66 @@ void CvPlayerAI::AI_unitUpdate()
 }
 
 
+/// Keep a captured city if the empire is fine with it as a puppet, or if its own luxuries pay for most of its unhappiness
+bool CvPlayerAI::IsCaptureWorthKeeping(CvCity* pCity)
+{
+	std::vector<ResourceTypes> aTypes;
+	for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+	{
+		CvPlot* pPlot = plotCity(pCity->getX(), pCity->getY(), iI);
+		if(pPlot == NULL || pPlot->getOwner() != GetID() || pPlot->getWorkingCity() != pCity)
+		{
+			continue;
+		}
+		ResourceTypes eResource = pPlot->getResourceType(getTeam());
+		if(eResource != NO_RESOURCE && GC.getResourceInfo(eResource)->getResourceUsage() == RESOURCEUSAGE_LUXURY && std::find(aTypes.begin(), aTypes.end(), eResource) == aTypes.end())
+		{
+			aTypes.push_back(eResource);
+		}
+	}
+
+	int iLuxuryHappiness = 0;
+	int iNotYetCounted = 0;
+	for(std::vector<ResourceTypes>::iterator it = aTypes.begin(); it != aTypes.end(); ++it)
+	{
+		int iConnectedHere = 0;
+		for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+		{
+			CvPlot* pPlot = plotCity(pCity->getX(), pCity->getY(), iI);
+			if(pPlot == NULL || pPlot->getOwner() != GetID() || pPlot->getWorkingCity() != pCity || pPlot->getResourceType(getTeam()) != *it)
+			{
+				continue;
+			}
+			ImprovementTypes eImprovement = pPlot->getImprovementType();
+			if(pPlot->isCity() || (eImprovement != NO_IMPROVEMENT && !pPlot->IsImprovementPillaged() && GC.getImprovementInfo(eImprovement)->IsImprovementResourceTrade(*it)))
+			{
+				iConnectedHere += pPlot->getNumResource();
+			}
+		}
+		if(getNumResourceTotal(*it, true) - iConnectedHere <= 0)
+		{
+			int iHappiness = GetHappinessFromLuxury(*it);
+			iLuxuryHappiness += iHappiness;
+			if(iConnectedHere <= 0)
+			{
+				iNotYetCounted += iHappiness;
+			}
+		}
+	}
+
+	int iExcessIfPuppet = GetHappiness() - GetUnhappiness(NULL, pCity) + iNotYetCounted;
+	int iCityCost = GC.getUNHAPPINESS_PER_CITY() + pCity->getPopulation() * GC.getUNHAPPINESS_PER_POPULATION();
+	bool bKeep = iExcessIfPuppet >= 0 || iLuxuryHappiness + 2 >= iCityCost;
+
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		CvString strLogString;
+		strLogString.Format("Captured %s: excess now %d, if puppet %d, own luxury happiness %d, city cost %d, %s", pCity->getName().GetCString(), GetExcessHappiness(), iExcessIfPuppet, iLuxuryHappiness, iCityCost, bKeep ? "keep" : "raze");
+		GetHomelandAI()->LogHomelandMessage(strLogString);
+	}
+	return bKeep;
+}
+
 void CvPlayerAI::AI_conquerCity(CvCity* pCity, PlayerTypes eOldOwner)
 {
 	PlayerTypes eOriginalOwner = pCity->getOriginalOwner();
@@ -345,7 +405,7 @@ void CvPlayerAI::AI_conquerCity(CvCity* pCity, PlayerTypes eOldOwner)
 	{
 		// Burn the city if the empire is unhappy - keeping the city will only make things worse or if map hint dictates
 		// Huns will burn down everything possible once they have a core of a few cities (was 3, but this put Attila out of the running long term as a conqueror)
-		if (IsEmpireUnhappy() || (GC.getMap().GetAIMapHint() & 2) || (GetPlayerTraits()->GetRazeSpeedModifier() > 0 && getNumCities() >= 3 + (GC.getGame().getGameTurn() / 100)) )
+		if ((IsEmpireUnhappy() && !IsCaptureWorthKeeping(pCity)) || (GC.getMap().GetAIMapHint() & 2) || (GetPlayerTraits()->GetRazeSpeedModifier() > 0 && getNumCities() >= 3 + (GC.getGame().getGameTurn() / 100)) )
 		{
 			pCity->doTask(TASK_RAZE);
 			return;
