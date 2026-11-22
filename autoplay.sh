@@ -19,10 +19,10 @@ LOGS=$MYGAMES/Logs
 DATA=$MYGAMES/ModUserData/HumanizedAI-1.db
 export DISPLAY="${DISPLAY:-:0}"
 SUPERVISE=${SUPERVISE:-0}
-XVFB=${XVFB:-1}
 if [ "$SUPERVISE" = 1 ]; then
-	XVFB=0
+	XVFB=${XVFB:-0}
 fi
+XVFB=${XVFB:-1}
 if [ -n "$SLOT" ]; then
 	XVFB=1
 fi
@@ -44,6 +44,7 @@ CIVS=${CIVS:-CIVILIZATION_ROME,CIVILIZATION_GREECE,CIVILIZATION_EGYPT,CIVILIZATI
 MINORCIVS=${MINORCIVS:-8}
 GAMEOPTIONS=${GAMEOPTIONS:-GAMEOPTION_AI_TWEAKS=0}
 MISTAKES=${MISTAKES:-}
+COACH=${COACH:--1}
 SAVEAS=${SAVEAS:-}
 LOAD=${LOAD:-}
 BUILDERLOG=${BUILDERLOG:-0}
@@ -177,14 +178,14 @@ ini_set "$CONFIG" SyncRandSeed "$SEED"
 ini_set "$CONFIG" MapRandSeed "$SEED"
 ini_set "$CONFIG" AILog 1
 ini_set "$CONFIG" BuilderAILog "$BUILDERLOG"
-if [ "$SUPERVISE" != 1 ]; then
+if [ "$SUPERVISE" != 1 ] || [ "$XVFB" = 1 ]; then
 	ini_set "$GFX" FullScreen 0
 	ini_set "$GFX" WindowResX 1280
 	ini_set "$GFX" WindowResY 800
 fi
 db set AutoplayTurns "$TURNS" Status pending Turn -1 WorldSize "$WORLDSIZE" GameSpeed "$GAMESPEED" \
 	Handicap "$HANDICAP" MapScript "$MAPSCRIPT" Civs "$CIVS" MinorCivs "$MINORCIVS" GameOptions "$GAMEOPTIONS" Mistakes "$MISTAKES" \
-	SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0
+	SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0 Coach "$COACH" CoachReplay 0
 
 mkdir -p "$OUT"
 marker=$OUT/.started
@@ -196,7 +197,7 @@ marker=$OUT/.started
 	echo "options=$GAMEOPTIONS"
 	echo "mistakes=$MISTAKES"
 	echo "saveas=$SAVEAS load=$LOAD"
-	echo "xvfb=$XVFB display=$GAME_DISPLAY env=$XVFB_ENV supervise=$SUPERVISE slot=$SLOT"
+	echo "xvfb=$XVFB display=$GAME_DISPLAY env=$XVFB_ENV supervise=$SUPERVISE coach=$COACH slot=$SLOT"
 	echo "git=$(git -C "$ROOT" describe --always --dirty)"
 	echo "dll=$(md5sum "$ROOT/CvGameCoreDLL_Expansion2/BuildOutput/VS2013_ModWin32/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
 } > "$OUT/run.txt"

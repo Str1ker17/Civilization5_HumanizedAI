@@ -110,7 +110,8 @@ function HumanizedAutoplayLoadScreen()
 		return;
 	end
 	Events.SequenceGameInitComplete.Add( function()
-		if AutoplayGet( "Status" ) ~= "launching" then
+		local coachReplay = tonumber( AutoplayGet( "CoachReplay" ) ) == 1;
+		if AutoplayGet( "Status" ) ~= "launching" and not coachReplay then
 			return;
 		end
 		for slot, handicapType in string.gmatch( AutoplayGet( "Mistakes" ) or "", "(%d+)=([%w_]+)" ) do
@@ -122,7 +123,11 @@ function HumanizedAutoplayLoadScreen()
 			end
 		end
 		Events.LoadScreenClose();
-		Game.SetPausePlayer( -1 );
+		if coachReplay then
+			Game.SetPausePlayer( Game.GetActivePlayer() );
+		else
+			Game.SetPausePlayer( -1 );
+		end
 		UI.SetDontShowPopups( false );
 		AutoplaySet( "Status", "running" );
 		AutoplayLog( "running" );
