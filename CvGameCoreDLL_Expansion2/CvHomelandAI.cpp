@@ -20,6 +20,16 @@
 // must be included after all other headers
 #include "LintFree.h"
 
+static bool IsCivilianSpotTaken(const CvUnit* pUnit, const CvPlot* pPlot)
+{
+	if(pUnit->IsCombatUnit() || GC.getPLOT_UNIT_LIMIT() <= 0)
+	{
+		return false;
+	}
+	int iOthers = pPlot->getNumFriendlyUnitsOfType(pUnit, false) - (pUnit->plot() == pPlot ? 1 : 0);
+	return iOthers >= GC.getPLOT_UNIT_LIMIT();
+}
+
 CvHomelandUnit::CvHomelandUnit() :
 	m_iID(0)
 	, m_iAuxData(0)
@@ -492,6 +502,27 @@ void CvHomelandAI::EstablishHomelandPriorities()
 			move.m_eMoveType = (AIHomelandMove)iI;
 			move.m_iPriority = iPriority;
 			m_MovePriorityList.push_back(move);
+		}
+	}
+
+	if(!m_pPlayer->isHuman())
+	{
+		int iSafetyMove = -1;
+		int iWorkerMove = -1;
+		for(int iMove = 0; iMove < (int)m_MovePriorityList.size(); iMove++)
+		{
+			if(m_MovePriorityList[iMove].m_eMoveType == AI_HOMELAND_MOVE_TO_SAFETY)
+			{
+				iSafetyMove = iMove;
+			}
+			else if(m_MovePriorityList[iMove].m_eMoveType == AI_HOMELAND_MOVE_WORKER)
+			{
+				iWorkerMove = iMove;
+			}
+		}
+		if(iSafetyMove >= 0 && iWorkerMove >= 0 && m_MovePriorityList[iWorkerMove].m_iPriority <= m_MovePriorityList[iSafetyMove].m_iPriority)
+		{
+			m_MovePriorityList[iWorkerMove].m_iPriority = m_MovePriorityList[iSafetyMove].m_iPriority + 1;
 		}
 	}
 
@@ -1013,7 +1044,7 @@ void CvHomelandAI::PlotMovesToSafety()
 					{
 						// then this is our special case
 					}
-					else if(!pPlot->isFriendlyCity(*pUnit, false))
+					else if(!pPlot->isFriendlyCity(*pUnit, false) || IsCivilianSpotTaken(pUnit.pointer(), pPlot))
 					{
 						bAddUnit = true;
 					}
@@ -1227,7 +1258,7 @@ UnitHandle CvHomelandAI::FindWorkerGuard(CvPlot* pPlot)
 	for(list<int>::iterator it = m_CurrentTurnUnits.begin(); it != m_CurrentTurnUnits.end(); ++it)
 	{
 		UnitHandle pUnit = m_pPlayer->getUnit(*it);
-		if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX)
+		if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX || pUnit->GetCurrHitPoints() * 2 < pUnit->GetMaxHitPoints())
 		{
 			continue;
 		}
@@ -1259,7 +1290,7 @@ void CvHomelandAI::PlotWorkerGuardMoves()
 			continue;
 		}
 		CvPlot* pPlot = pWorker->plot();
-		if(pPlot && !pPlot->isCity() && pPlot->getNumDefenders(m_pPlayer->GetID()) == 0 && m_pPlayer->GetPlotDanger(*pPlot) > 0)
+		if(pPlot && (pPlot->isCity() ? IsCivilianSpotTaken(pWorker, pPlot) : (pPlot->getNumDefenders(m_pPlayer->GetID()) == 0 && m_pPlayer->GetPlotDanger(*pPlot) > 0 && m_pPlayer->IsPlotReachableByVisibleEnemy(*pPlot))))
 		{
 			MoveCivilianToSafety(pWorker, false);
 		}
@@ -1286,7 +1317,7 @@ void CvHomelandAI::PlotWorkerGuardMoves()
 		for(list<int>::iterator it = m_CurrentTurnUnits.begin(); it != m_CurrentTurnUnits.end(); ++it)
 		{
 			UnitHandle pUnit = m_pPlayer->getUnit(*it);
-			if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX)
+			if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX || pUnit->GetCurrHitPoints() * 2 < pUnit->GetMaxHitPoints())
 			{
 				continue;
 			}
@@ -2933,6 +2964,11 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 						continue;
 					}
 
+					if(IsCivilianSpotTaken(pUnit.pointer(), pPlot))
+					{
+						continue;
+					}
+
 					//   prefer being in a city with the lowest danger value
 					//   prefer being in a plot with no danger value
 					//   prefer being under a unit with the lowest danger value
@@ -2940,7 +2976,7 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 					//   prefer the lowest danger value
 
 					iDanger = m_pPlayer->GetPlotDanger(*pPlot);
-					bool bIsZeroDanger = (iDanger <= 0) && (pUnit->IsCombatUnit() || !m_pPlayer->IsCivilianHazard(*pPlot));
+					bool bIsZeroDanger = pUnit->IsCombatUnit() ? (iDanger <= 0) : m_pPlayer->IsSafeCivilianEndPlot(*pPlot);
 					bool bIsInCity = pPlot->isFriendlyCity(*pUnit, false);
 					bool bIsInCover = (pPlot->getNumDefenders(m_pPlayer->GetID()) > 0) && !pUnit->IsCanDefend();
 					bool bIsInTerritory = (pPlot->getTeam() == m_pPlayer->getTeam());
@@ -4743,6 +4779,11 @@ bool CvHomelandAI::MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits)
 				continue;
 			}
 
+			if(IsCivilianSpotTaken(pUnit, pLoopPlot))
+			{
+				continue;
+			}
+
 			int iValue = 0;
 			if(pLoopPlot->getOwner() != NO_PLAYER && GET_PLAYER(pLoopPlot->getOwner()).getTeam() == m_pPlayer->getTeam())
 			{
@@ -4779,7 +4820,12 @@ bool CvHomelandAI::MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits)
 				}
 			}
 
-			iValue -= m_pPlayer->GetPlotDanger(*pLoopPlot);
+			int iDanger = m_pPlayer->GetPlotDanger(*pLoopPlot);
+			if(iDanger > 0 && !m_pPlayer->IsPlotReachableByVisibleEnemy(*pLoopPlot))
+			{
+				iDanger = 0;
+			}
+			iValue -= iDanger;
 
 			aBestPlotList.push_back(pLoopPlot, iValue);
 		}
@@ -4850,7 +4896,7 @@ bool CvHomelandAI::MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits)
 				CvString strLogString;
 				CvString strTemp;
 				strTemp = GC.getUnitInfo(pUnit->getUnitType())->GetDescription();
-				strLogString.Format("%s (%d) moving to safety, X: %d, Y: %d", strTemp.GetCString(), pUnit->GetID(), pBestPlot->getX(), pBestPlot->getY());
+				strLogString.Format("%s (%d) moving to safety, X: %d, Y: %d, danger %d, reach %d", strTemp.GetCString(), pUnit->GetID(), pBestPlot->getX(), pBestPlot->getY(), m_pPlayer->GetPlotDanger(*pBestPlot), m_pPlayer->IsPlotReachableByVisibleEnemy(*pBestPlot) ? 1 : 0);
 				LogHomelandMessage(strLogString);
 			}
 
@@ -5699,7 +5745,7 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 		CvPlot* pEndPlot = bHasDirective ? GetWorkerEndPlot(pUnit, aDirective[0]) : NULL;
 		if(pEndPlot && m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot))
 		{
-			if(!pUnit->plot()->isCity())
+			if(!pUnit->plot()->isCity() || IsCivilianSpotTaken(pUnit, pUnit->plot()))
 			{
 				MoveCivilianToSafety(pUnit, false);
 			}

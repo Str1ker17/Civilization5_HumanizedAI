@@ -32049,6 +32049,62 @@ bool CvPlayer::IsUnsafeForCivilians(CvPlot& kPlot) const
 }
 
 //	--------------------------------------------------------------------------------
+bool CvPlayer::IsPlotReachableByVisibleEnemy(const CvPlot& kPlot) const
+{
+	CvTwoLayerPathFinder& kPathFinder = GC.getPathFinder();
+	for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
+	{
+		CvPlayer& kOther = GET_PLAYER((PlayerTypes)iPlayerLoop);
+		if(iPlayerLoop == GetID() || !kOther.isAlive() || !GET_TEAM(getTeam()).isAtWar(kOther.getTeam()))
+		{
+			continue;
+		}
+		int iLoop;
+		for(CvUnit* pEnemy = kOther.firstUnit(&iLoop); pEnemy != NULL; pEnemy = kOther.nextUnit(&iLoop))
+		{
+			CvPlot* pEnemyPlot = pEnemy->plot();
+			if(!pEnemyPlot || !pEnemy->IsCombatUnit() || pEnemy->getDomainType() != DOMAIN_LAND || !pEnemyPlot->isVisible(getTeam()) || pEnemy->isInvisible(getTeam(), false))
+			{
+				continue;
+			}
+			int iDistance = plotDistance(pEnemy->getX(), pEnemy->getY(), kPlot.getX(), kPlot.getY());
+			if(iDistance > pEnemy->baseMoves())
+			{
+				continue;
+			}
+			if(iDistance <= 1)
+			{
+				return true;
+			}
+			if(!kPathFinder.GenerateUnitPath(pEnemy, pEnemy->getX(), pEnemy->getY(), kPlot.getX(), kPlot.getY(), MOVE_UNITS_IGNORE_DANGER, false))
+			{
+				return true;
+			}
+			int iTurns = kPathFinder.GetLastNode()->m_iData2;
+			if(pEnemy->movesLeft() < pEnemy->maxMoves())
+			{
+				iTurns--;
+			}
+			if(iTurns <= 1)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsSafeCivilianEndPlot(CvPlot& kPlot) const
+{
+	if(IsCivilianHazard(kPlot))
+	{
+		return false;
+	}
+	return GetPlotDanger(kPlot) <= 0 || !IsPlotReachableByVisibleEnemy(kPlot);
+}
+
+//	--------------------------------------------------------------------------------
 void CvPlayer::AddCivilianLoss(const CvPlot& kPlot, UnitTypes eUnit, PlayerTypes eCaptor)
 {
 	const int iMemoryTurns = 30;
@@ -32130,10 +32186,10 @@ void CvPlayer::LogCivilianExposure()
 		}
 
 		CvString strLog;
-		strLog.Format("%03d, %d, exposure, %s, %d, %d, unit=%d city=%d own=%d build=%d guard=%d danger=%d hazard=%d nearest=%d nearestvis=%d visible=%d within2=%d",
+		strLog.Format("%03d, %d, exposure, %s, %d, %d, unit=%d city=%d own=%d build=%d guard=%d danger=%d hazard=%d nearest=%d nearestvis=%d visible=%d within2=%d reach=%d",
 			iTurn, (int)GetID(), eAI == UNITAI_WORKER ? "worker" : "settler", pPlot->getX(), pPlot->getY(), pCivilian->GetID(), iCityDistance,
 			pPlot->getOwner() == GetID() ? 1 : 0, pCivilian->getBuildType() != NO_BUILD ? 1 : 0, pPlot->getNumDefenders(GetID()) > 0 ? 1 : 0,
-			GetPlotDanger(*pPlot), IsCivilianHazard(*pPlot) ? 1 : 0, iNearest, iNearestVisible, bNearestVisible ? 1 : 0, iWithin2);
+			GetPlotDanger(*pPlot), IsCivilianHazard(*pPlot) ? 1 : 0, iNearest, iNearestVisible, bNearestVisible ? 1 : 0, iWithin2, IsPlotReachableByVisibleEnemy(*pPlot) ? 1 : 0);
 		pLog->Msg(strLog);
 	}
 }

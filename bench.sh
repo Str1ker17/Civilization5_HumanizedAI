@@ -33,7 +33,7 @@ while [ "$slot" -le "$SLOTS" ]; do
 	done
 	run_slot "$slot" "$list" &
 	slot=$((slot + 1))
-	sleep 10
+	sleep 1
 done
 wait
 echo "batch done"
