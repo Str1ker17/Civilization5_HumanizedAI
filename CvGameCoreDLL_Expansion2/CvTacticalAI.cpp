@@ -6570,7 +6570,10 @@ void CvTacticalAI::ExecuteMovesToSafestPlot()
 				}
 				else
 				{
-					m_pPlayer->GetHomelandAI()->HoldCombatUnitInPlace(pUnit.pointer());
+					if(!m_pPlayer->GetHomelandAI()->TryBreakoutAttack(pUnit.pointer()))
+					{
+						m_pPlayer->GetHomelandAI()->HoldCombatUnitInPlace(pUnit.pointer());
+					}
 					UnitProcessed(pUnit->GetID(), true);
 					continue;
 				}

@@ -2950,6 +2950,93 @@ CvPlot* CvHomelandAI::GetCombatRetreatPlot(CvUnit* pUnit)
 	return pBestPlot;
 }
 
+/// A unit with no way home attacks an adjacent enemy it beats, or shoots the most damaged enemy in range
+bool CvHomelandAI::TryBreakoutAttack(CvUnit* pUnit)
+{
+	CvPlot* pPlot = pUnit->plot();
+	if(!pUnit->IsCanAttack() || pUnit->isEmbarked() || pPlot->isFriendlyCity(*pUnit, false) || m_pPlayer->GetPlotDanger(*pPlot) <= 0)
+	{
+		return false;
+	}
+	CvPlot* pBestTarget = NULL;
+	int iBestScore = 0;
+	if(pUnit->isRanged())
+	{
+		int iRange = pUnit->GetRange();
+		for(int iDX = -iRange; iDX <= iRange; iDX++)
+		{
+			for(int iDY = -iRange; iDY <= iRange; iDY++)
+			{
+				CvPlot* pLoopPlot = plotXYWithRangeCheck(pUnit->getX(), pUnit->getY(), iDX, iDY, iRange);
+				if(pLoopPlot == NULL || pLoopPlot->isCity() || !pUnit->canRangeStrikeAt(pLoopPlot->getX(), pLoopPlot->getY()))
+				{
+					continue;
+				}
+				CvUnit* pDefender = pLoopPlot->getVisibleEnemyDefender(m_pPlayer->GetID());
+				if(pDefender && pDefender->getDamage() + 1 > iBestScore)
+				{
+					iBestScore = pDefender->getDamage() + 1;
+					pBestTarget = pLoopPlot;
+				}
+			}
+		}
+		if(pBestTarget)
+		{
+			pUnit->PushMission(CvTypes::getMISSION_RANGE_ATTACK(), pBestTarget->getX(), pBestTarget->getY());
+		}
+	}
+	else
+	{
+		for(int iI = 0; iI < NUM_DIRECTION_TYPES; iI++)
+		{
+			CvPlot* pAdjacent = plotDirection(pPlot->getX(), pPlot->getY(), (DirectionTypes)iI);
+			if(pAdjacent == NULL || pAdjacent->isCity() || !pUnit->canMoveInto(*pAdjacent, CvUnit::MOVEFLAG_ATTACK))
+			{
+				continue;
+			}
+			CvUnit* pDefender = pAdjacent->getVisibleEnemyDefender(m_pPlayer->GetID());
+			if(pDefender == NULL)
+			{
+				continue;
+			}
+			CombatPredictionTypes ePrediction = GC.getGame().GetCombatPrediction(pUnit, pDefender);
+			int iScore = 0;
+			if(ePrediction == COMBAT_PREDICTION_TOTAL_VICTORY)
+			{
+				iScore = 3;
+			}
+			else if(ePrediction == COMBAT_PREDICTION_MAJOR_VICTORY)
+			{
+				iScore = 2;
+			}
+			else if(ePrediction == COMBAT_PREDICTION_SMALL_VICTORY)
+			{
+				iScore = 1;
+			}
+			if(iScore > iBestScore)
+			{
+				iBestScore = iScore;
+				pBestTarget = pAdjacent;
+			}
+		}
+		if(pBestTarget)
+		{
+			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pBestTarget->getX(), pBestTarget->getY());
+		}
+	}
+	if(pBestTarget == NULL)
+	{
+		return false;
+	}
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		CvString strLogString;
+		strLogString.Format("Breakout attack by %s, score %d, X: %d, Y: %d, target X: %d, Y: %d", pUnit->getUnitInfo().GetDescription(), iBestScore, pPlot->getX(), pPlot->getY(), pBestTarget->getX(), pBestTarget->getY());
+		LogHomelandMessage(strLogString);
+	}
+	return true;
+}
+
 /// Stay on the plot without spending moves, so the unit heals
 void CvHomelandAI::HoldCombatUnitInPlace(CvUnit* pUnit)
 {
@@ -3097,7 +3184,10 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 				}
 				else
 				{
-					HoldCombatUnitInPlace(pUnit.pointer());
+					if(!TryBreakoutAttack(pUnit.pointer()))
+					{
+						HoldCombatUnitInPlace(pUnit.pointer());
+					}
 					UnitProcessed(pUnit->GetID());
 					continue;
 				}

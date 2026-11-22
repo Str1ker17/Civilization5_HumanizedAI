@@ -217,6 +217,7 @@ public:
 	bool MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits = false);
 	CvPlot* GetCombatRetreatPlot(CvUnit* pUnit);
 	void HoldCombatUnitInPlace(CvUnit* pUnit);
+	bool TryBreakoutAttack(CvUnit* pUnit);
 
 	// Public logging
 	void LogHomelandMessage(CvString& strMsg);
