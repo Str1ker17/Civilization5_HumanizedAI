@@ -351,6 +351,7 @@ protected:
 	static int lSetMoves(lua_State* L);
 	static int lChangeMoves(lua_State* L);
 	static int lFinishMoves(lua_State* L);
+	static int lSetTurnProcessed(lua_State* L);
 	static int lIsImmobile(lua_State* L);
 
 	static int lGetExperience(lua_State* L);

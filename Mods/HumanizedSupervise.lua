@@ -158,7 +158,11 @@ end
 local function AddFix( m, x, y )
 	g_fixes[ m.unit ] = { unit = m.unit, name = m.name, fx = m.fx, fy = m.fy, ax = m.tx, ay = m.ty, x = x, y = y };
 	DrawFixes();
-	Controls.MoveLabel:SetText( string.format( "Поправка: %s пойдёт на %d,%d вместо %d,%d. Напиши почему и нажми «Плохой ход», потом «Переиграть ход».", m.name, x, y, m.tx, m.ty ) );
+	local what = string.format( "пойдёт на %d,%d", x, y );
+	if x == m.fx and y == m.fy then
+		what = "укрепится на месте";
+	end
+	Controls.MoveLabel:SetText( string.format( "Поправка: %s %s вместо %d,%d. Напиши почему и нажми «Плохой ход», потом «Переиграть ход».", m.name, what, m.tx, m.ty ) );
 	Controls.Note:TakeFocus();
 	Log( string.format( "fix unit=%d to=%d,%d", m.unit, x, y ) );
 end
@@ -343,12 +347,18 @@ local function ApplyReplay()
 			local unit = player:GetUnitByID( tonumber( id ) );
 			if unit then
 				local fx, fy = unit:GetX(), unit:GetY();
-				if unit:IsRanged() and unit:CanRangeStrikeAt( tonumber( x ), tonumber( y ) ) then
+				if fx == tonumber( x ) and fy == tonumber( y ) then
+					if unit:CanStartMission( MissionTypes.MISSION_FORTIFY, -1, -1 ) then
+						unit:PushMission( MissionTypes.MISSION_FORTIFY );
+					else
+						unit:PushMission( MissionTypes.MISSION_SKIP );
+					end
+				elseif unit:IsRanged() and unit:CanRangeStrikeAt( tonumber( x ), tonumber( y ) ) then
 					unit:PushMission( MissionTypes.MISSION_RANGE_ATTACK, tonumber( x ), tonumber( y ) );
 				else
 					unit:PushMission( MissionTypes.MISSION_MOVE_TO, tonumber( x ), tonumber( y ) );
 				end
-				unit:FinishMoves();
+				unit:SetTurnProcessed( true );
 				applied = applied + 1;
 				Log( string.format( "fix applied unit=%s from=%d,%d to=%s,%s now=%d,%d", id, fx, fy, x, y, unit:GetX(), unit:GetY() ) );
 			end
