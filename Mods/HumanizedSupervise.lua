@@ -12,6 +12,9 @@ local g_refresh = false;
 local g_hoverX, g_hoverY = -1, -1;
 local g_attacks = {};
 local g_notes = tonumber( g_data.GetValue( "SuperviseNotes" ) ) or 0;
+local g_queueLines = InstanceManager:new( "QueueLine", "Button", Controls.QueueStack );
+local g_queueShown = false;
+local g_selectedQueue = nil;
 
 local function Log( text )
 	print( "HumanizedSupervise: " .. text );
@@ -74,8 +77,63 @@ end
 
 local function Select( m )
 	g_selected = m;
+	g_selectedQueue = nil;
 	Controls.MoveLabel:SetText( "Выбрано: " .. Describe( m ) );
 	Controls.Note:TakeFocus();
+end
+
+local function SelectQueue( q )
+	g_selectedQueue = q;
+	g_selected = nil;
+	Controls.MoveLabel:SetText( "Выбрано: " .. q.text );
+	Controls.Note:TakeFocus();
+end
+
+local function AddQueueLine( q )
+	local line = g_queueLines:GetInstance();
+	line.Text:SetText( q.text );
+	line.Button:RegisterCallback( Mouse.eLClick, function() SelectQueue( q ); end );
+end
+
+local function RefreshQueues()
+	g_queueLines:ResetInstances();
+	for playerID = 0, GameDefines.MAX_MAJOR_CIVS - 1 do
+		local player = Players[ playerID ];
+		if player and player:IsAlive() and not player:IsMinorCiv() and playerID ~= Game.GetActivePlayer() then
+			local tech = player:GetCurrentResearch();
+			local techName = "ничего";
+			local techTurns = "";
+			if tech ~= nil and tech >= 0 and GameInfo.Technologies[ tech ] then
+				techName = Locale.ConvertTextKey( GameInfo.Technologies[ tech ].Description );
+				techTurns = string.format( ", %d ход.", player:GetResearchTurnsLeft( tech, true ) );
+			end
+			AddQueueLine( { kind = "research", player = playerID, city = "", item = techName,
+				text = string.format( "%s: изучает %s%s", CivName( playerID ), techName, techTurns ) } );
+			for city in player:Cities() do
+				local cityName = Locale.ConvertTextKey( city:GetNameKey() );
+				local key = city:GetProductionNameKey();
+				local item = "ничего";
+				local turns = "";
+				if key ~= nil and key ~= "" then
+					item = Locale.ConvertTextKey( key );
+					turns = string.format( ", %d ход.", city:GetProductionTurnsLeft() );
+				end
+				AddQueueLine( { kind = "production", player = playerID, city = cityName, item = item,
+					text = string.format( "      %s (%d жит.): строит %s%s", cityName, city:GetPopulation(), item, turns ) } );
+			end
+		end
+	end
+	Controls.QueueStack:CalculateSize();
+	Controls.QueueStack:ReprocessAnchoring();
+	Controls.QueueScroll:CalculateInternalSize();
+end
+
+local function OnQueue()
+	g_queueShown = not g_queueShown;
+	Controls.QueuePanel:SetHide( not g_queueShown );
+	if g_queueShown then
+		RefreshQueues();
+	end
 end
 
 local function Draw()
@@ -119,7 +177,11 @@ local function Refresh()
 	g_attacks = {};
 	g_prev = snap;
 	g_selected = nil;
+	g_selectedQueue = nil;
 	Draw();
+	if g_queueShown then
+		RefreshQueues();
+	end
 	Controls.TurnLabel:SetText( string.format( "Ход %d, пауза. Изменений: %d. Записано заметок: %d", Game.GetGameTurn(), #g_moves, g_notes ) );
 	Controls.MoveLabel:SetText( "Клик по маркеру выбирает ход. Без выбора заметка относится к клетке под курсором. Маркеры: + новый, x потерян, = стоял, ! атака (красный пунктир)." );
 	Log( string.format( "paused turn=%d changes=%d", Game.GetGameTurn(), #g_moves ) );
@@ -128,7 +190,11 @@ end
 local function OnBad()
 	local note = Controls.Note:GetText() or "";
 	local line;
-	if g_selected then
+	if g_selectedQueue then
+		local q = g_selectedQueue;
+		line = string.format( "bad turn=%d player=%d civ=%s kind=%s city=%s item=%s note=%s",
+			Game.GetGameTurn(), q.player, CivName( q.player ), q.kind, q.city, q.item, note );
+	elseif g_selected then
 		local m = g_selected;
 		line = string.format( "bad turn=%d player=%d civ=%s unit=%d name=%s kind=%s from=%d,%d to=%d,%d note=%s",
 			Game.GetGameTurn(), m.player, CivName( m.player ), m.unit, m.name, m.kind, m.fx, m.fy, m.tx, m.ty, note );
@@ -148,6 +214,7 @@ local function OnNext()
 	g_dots:ResetInstances();
 	g_markers:ResetInstances();
 	g_selected = nil;
+	g_selectedQueue = nil;
 	Controls.TurnLabel:SetText( "ИИ ходит..." );
 	Controls.MoveLabel:SetText( "" );
 	Game.SetPausePlayer( -1 );
@@ -155,8 +222,10 @@ end
 
 Controls.BadLabel:SetText( "Плохой ход" );
 Controls.NextLabel:SetText( "Следующий ход" );
+Controls.QueueLabel:SetText( "Очереди" );
 Controls.BadButton:RegisterCallback( Mouse.eLClick, OnBad );
 Controls.NextButton:RegisterCallback( Mouse.eLClick, OnNext );
+Controls.QueueButton:RegisterCallback( Mouse.eLClick, OnQueue );
 
 Events.SerialEventMouseOverHex.Add( function( hexX, hexY )
 	g_hoverX, g_hoverY = hexX, hexY;
