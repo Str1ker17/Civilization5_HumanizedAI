@@ -1834,7 +1834,8 @@ public:
 	bool IsEnemyNear(const CvPlot& kPlot, int iRange) const;
 	bool HasStayingDefender(const CvPlot& kPlot) const;
 	bool IsUnsafeForCivilians(CvPlot& kPlot) const;
-	bool IsPlotReachableByVisibleEnemy(const CvPlot& kPlot) const;
+	bool IsPlotReachableByVisibleEnemy(const CvPlot& kPlot, int iTurns = 1) const;
+	bool CanGuardReachPlotNextTurn(const CvPlot& kPlot) const;
 	bool IsSafeCivilianEndPlot(CvPlot& kPlot) const;
 	void AddCivilianLoss(const CvPlot& kPlot, UnitTypes eUnit, PlayerTypes eCaptor);
 	void LogCivilianExposure();
