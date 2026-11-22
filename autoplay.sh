@@ -55,19 +55,27 @@ db() {
 	python3 -I - "$DATA" "$@" <<'EOF'
 import sqlite3
 import sys
+import time
 
-db = sqlite3.connect(sys.argv[1], timeout=10)
-db.execute('create table if not exists SimpleValues(Name TEXT Primary Key, Value VARIANT)')
 args = sys.argv[2:]
-if args[0] == 'set':
-    for name, value in zip(args[1::2], args[2::2]):
-        if value.lstrip('-').isdigit():
-            value = int(value)
-        db.execute('insert or replace into SimpleValues values (?, ?)', (name, value))
-    db.commit()
-else:
-    row = db.execute('select Value from SimpleValues where Name = ?', (args[1],)).fetchone()
-    print('' if row is None else row[0])
+for attempt in range(5):
+    try:
+        db = sqlite3.connect(sys.argv[1], timeout=60)
+        db.execute('create table if not exists SimpleValues(Name TEXT Primary Key, Value VARIANT)')
+        if args[0] == 'set':
+            for name, value in zip(args[1::2], args[2::2]):
+                if value.lstrip('-').isdigit():
+                    value = int(value)
+                db.execute('insert or replace into SimpleValues values (?, ?)', (name, value))
+            db.commit()
+        else:
+            row = db.execute('select Value from SimpleValues where Name = ?', (args[1],)).fetchone()
+            print('' if row is None else row[0])
+        break
+    except sqlite3.OperationalError:
+        if attempt == 4:
+            raise
+        time.sleep(5)
 EOF
 }
 
