@@ -6071,9 +6071,13 @@ bool CvHomelandAI::IsValidExplorerEndTurnPlot(const CvUnit* pUnit, CvPlot* pPlot
 		{
 			return false;
 		}
-		if(m_pPlayer->GetPlotDanger(*pPlot) > 0 && m_pPlayer->IsPlotReachableByVisibleEnemy(*pPlot))
+		for(int iI = 0; iI < NUM_DIRECTION_TYPES; iI++)
 		{
-			return false;
+			CvPlot* pAdjacent = plotDirection(pPlot->getX(), pPlot->getY(), (DirectionTypes)iI);
+			if(pAdjacent && pAdjacent->isVisibleEnemyDefender(pUnit))
+			{
+				return false;
+			}
 		}
 	}
 
