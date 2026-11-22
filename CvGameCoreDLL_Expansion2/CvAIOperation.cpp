@@ -3043,6 +3043,16 @@ void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEn
 				{
 					// There was no escort immediately available.  Let's look for a "safe" city site instead
 					pNewTarget = FindBestTarget(pOurCivilian, true);
+					if(pNewTarget != NULL && pNewTarget != pTargetSite && !GET_PLAYER(m_eOwner).isHuman() && pNewTarget->getFoundValue(m_eOwner) * 10 < pTargetSite->getFoundValue(m_eOwner) * 8)
+					{
+						if(GC.getLogging() && GC.getAILogging())
+						{
+							CvString strMsg;
+							strMsg.Format("Lone site X: %d, Y: %d value %d is below 80%% of escorted site X: %d, Y: %d value %d, waiting for an escort", pNewTarget->getX(), pNewTarget->getY(), pNewTarget->getFoundValue(m_eOwner), pTargetSite->getX(), pTargetSite->getY(), pTargetSite->getFoundValue(m_eOwner));
+							LogOperationSpecialMessage(strMsg);
+						}
+						pNewTarget = NULL;
+					}
 
 					// If no better target, we'll wait it out for an escort
 					if(pNewTarget == NULL)
