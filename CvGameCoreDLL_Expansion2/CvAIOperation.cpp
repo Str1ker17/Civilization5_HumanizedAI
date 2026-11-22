@@ -3048,7 +3048,7 @@ void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEn
 						if(GC.getLogging() && GC.getAILogging())
 						{
 							CvString strMsg;
-							strMsg.Format("Lone site X: %d, Y: %d value %d is below 80%% of escorted site X: %d, Y: %d value %d, waiting for an escort", pNewTarget->getX(), pNewTarget->getY(), pNewTarget->getFoundValue(m_eOwner), pTargetSite->getX(), pTargetSite->getY(), pTargetSite->getFoundValue(m_eOwner));
+							strMsg.Format("Lone site X: %d, Y: %d value %d is below 80 percent of escorted site X: %d, Y: %d value %d, waiting for an escort", pNewTarget->getX(), pNewTarget->getY(), pNewTarget->getFoundValue(m_eOwner), pTargetSite->getX(), pTargetSite->getY(), pTargetSite->getFoundValue(m_eOwner));
 							LogOperationSpecialMessage(strMsg);
 						}
 						pNewTarget = NULL;
