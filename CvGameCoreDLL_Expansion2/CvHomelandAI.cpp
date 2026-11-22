@@ -1011,7 +1011,7 @@ void CvHomelandAI::PlotMovesToSafety()
 					{
 						// then this is our special case
 					}
-					else
+					else if(!pPlot->isFriendlyCity(*pUnit, false))
 					{
 						bAddUnit = true;
 					}
