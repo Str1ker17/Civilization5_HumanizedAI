@@ -215,6 +215,8 @@ public:
 	bool IsAnyValidExploreMoves(const CvUnit* pUnit) const;
 	bool ExecuteSpecialExploreMove(CvUnit* pUnit, CvPlot* pPlot);
 	bool MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits = false);
+	CvPlot* GetCombatRetreatPlot(CvUnit* pUnit);
+	void HoldCombatUnitInPlace(CvUnit* pUnit);
 
 	// Public logging
 	void LogHomelandMessage(CvString& strMsg);

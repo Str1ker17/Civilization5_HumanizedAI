@@ -6561,6 +6561,21 @@ void CvTacticalAI::ExecuteMovesToSafestPlot()
 						pBestPlot = GetReachablePlot(pUnit, aDangerList, 1);
 #endif
 
+			if(pUnit->IsCombatUnit() && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && (pBestPlot == NULL || pBestPlot == pUnit->plot()))
+			{
+				CvPlot* pRetreat = m_pPlayer->GetHomelandAI()->GetCombatRetreatPlot(pUnit.pointer());
+				if(pRetreat != NULL)
+				{
+					pBestPlot = pRetreat;
+				}
+				else
+				{
+					m_pPlayer->GetHomelandAI()->HoldCombatUnitInPlace(pUnit.pointer());
+					UnitProcessed(pUnit->GetID(), true);
+					continue;
+				}
+			}
+
 			if(pBestPlot != NULL)
 			{
 				// Move to the lowest danger value found

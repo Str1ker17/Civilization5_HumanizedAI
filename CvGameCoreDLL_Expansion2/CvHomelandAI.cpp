@@ -2708,6 +2708,26 @@ void CvHomelandAI::ExecuteExplorerMoves()
 							break;
 						}
 					}
+					if(bFoundPath && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && pUnit->getDomainType() == DOMAIN_LAND && pUnit->plot()->getOwner() != m_pPlayer->GetID())
+					{
+						CvCity* pHome = GC.getMap().findCity(pUnit->getX(), pUnit->getY(), m_pPlayer->GetID(), NO_TEAM, true);
+						if(pHome != NULL && pUnit->GeneratePath(pHome->plot(), MOVE_UNITS_IGNORE_DANGER))
+						{
+							CvPlot* pEnd = pUnit->GetPathEndTurnPlot();
+							if(pEnd != NULL && pEnd != pUnit->plot())
+							{
+								pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pEnd->getX(), pEnd->getY(), MOVE_UNITS_IGNORE_DANGER);
+								UnitProcessed(pUnit->GetID());
+								if(GC.getLogging() && GC.getAILogging())
+								{
+									CvString strLogString;
+									strLogString.Format("UnitID: %d Explorer going home to %s, X: %d, Y: %d", pUnit->GetID(), pHome->getName().GetCString(), pEnd->getX(), pEnd->getY());
+									LogHomelandMessage(strLogString);
+								}
+							}
+						}
+					}
+
 					if(!bFoundPath)
 					{
 						CvString strLogString;
@@ -2891,6 +2911,61 @@ void CvHomelandAI::ExecuteHeals()
 	}
 }
 
+/// Path end of this turn toward the closest own city for a combat unit that has no safer plot in reach
+CvPlot* CvHomelandAI::GetCombatRetreatPlot(CvUnit* pUnit)
+{
+	CvPlot* pPlot = pUnit->plot();
+	if(pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pPlot->isFriendlyCity(*pUnit, false) || m_pPlayer->GetPlotDanger(*pPlot) <= 0)
+	{
+		return NULL;
+	}
+	CvPlot* pBestPlot = NULL;
+	CvCity* pBestCity = NULL;
+	int iBestTurns = MAX_INT;
+	int iLoop;
+	for(CvCity* pCity = m_pPlayer->firstCity(&iLoop); pCity != NULL; pCity = m_pPlayer->nextCity(&iLoop))
+	{
+		int iTurns = MAX_INT;
+		if(pCity->getArea() == pPlot->getArea() && pUnit->GeneratePath(pCity->plot(), MOVE_UNITS_IGNORE_DANGER, false, &iTurns) && iTurns < iBestTurns)
+		{
+			CvPlot* pEnd = pUnit->GetPathEndTurnPlot();
+			if(pEnd != NULL && pEnd != pPlot)
+			{
+				iBestTurns = iTurns;
+				pBestPlot = pEnd;
+				pBestCity = pCity;
+			}
+		}
+	}
+	if(pBestPlot != NULL && GC.getLogging() && GC.getAILogging())
+	{
+		CvString strLogString;
+		strLogString.Format("Retreating %s home to %s in %d turns, X: %d, Y: %d, From X: %d, Y: %d", pUnit->getUnitInfo().GetDescription(), pBestCity->getName().GetCString(), iBestTurns, pBestPlot->getX(), pBestPlot->getY(), pPlot->getX(), pPlot->getY());
+		LogHomelandMessage(strLogString);
+	}
+	return pBestPlot;
+}
+
+/// Stay on the plot without spending moves, so the unit heals
+void CvHomelandAI::HoldCombatUnitInPlace(CvUnit* pUnit)
+{
+	if(pUnit->isFortifyable())
+	{
+		pUnit->PushMission(CvTypes::getMISSION_FORTIFY());
+		pUnit->SetFortifiedThisTurn(true);
+	}
+	else
+	{
+		pUnit->PushMission(CvTypes::getMISSION_SKIP());
+	}
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		CvString strLogString;
+		strLogString.Format("Holding %s in place to heal, HP %d, danger %d, X: %d, Y: %d", pUnit->getUnitInfo().GetDescription(), pUnit->GetCurrHitPoints(), m_pPlayer->GetPlotDanger(*pUnit->plot()), pUnit->getX(), pUnit->getY());
+		LogHomelandMessage(strLogString);
+	}
+}
+
 /// Moves units to the hex with the lowest danger
 void CvHomelandAI::ExecuteMovesToSafestPlot()
 {
@@ -3006,6 +3081,21 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 							break;
 					}
 					#endif
+				}
+			}
+
+			if(!m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && (pBestPlot == NULL || pBestPlot == pUnit->plot()))
+			{
+				CvPlot* pRetreat = GetCombatRetreatPlot(pUnit.pointer());
+				if(pRetreat != NULL)
+				{
+					pBestPlot = pRetreat;
+				}
+				else
+				{
+					HoldCombatUnitInPlace(pUnit.pointer());
+					UnitProcessed(pUnit->GetID());
+					continue;
 				}
 			}
 
