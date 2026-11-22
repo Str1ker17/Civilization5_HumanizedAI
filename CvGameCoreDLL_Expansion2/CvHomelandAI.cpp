@@ -5938,16 +5938,19 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 			{
 				bool bMajorWorker = !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && pUnit->AI_getUnitAIType() == UNITAI_WORKER;
 				pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), aDirective[0].m_sX, aDirective[0].m_sY, bMajorWorker ? MOVE_UNITS_IGNORE_DANGER : 0, false, false, MISSIONAI_BUILD, pPlot);
-				if(bMajorWorker && pUnit->getMoves() > 0 && !pUnit->plot()->isCity() && !m_pPlayer->HasStayingDefender(*pUnit->plot()) && m_pPlayer->IsPlotReachableByVisibleEnemy(*pUnit->plot()))
+				if(bMajorWorker && !pUnit->plot()->isCity() && !m_pPlayer->HasStayingDefender(*pUnit->plot()) && m_pPlayer->IsPlotReachableByVisibleEnemy(*pUnit->plot()))
 				{
 					if(GC.getLogging() && GC.getAILogging())
 					{
 						CvString strLogString;
-						strLogString.Format("Worker (%d) sees a reachable enemy after moving, flees from X: %d, Y: %d", pUnit->GetID(), pUnit->getX(), pUnit->getY());
+						strLogString.Format("Worker (%d) sees a reachable enemy after moving, moves left %d, X: %d, Y: %d", pUnit->GetID(), pUnit->getMoves(), pUnit->getX(), pUnit->getY());
 						LogHomelandMessage(strLogString);
 					}
-					m_pPlayer->UpdateDangerPlots();
-					MoveCivilianToSafety(pUnit, false);
+					if(pUnit->getMoves() > 0)
+					{
+						m_pPlayer->UpdateDangerPlots();
+						MoveCivilianToSafety(pUnit, false);
+					}
 				}
 				pUnit->finishMoves();
 				UnitProcessed(pUnit->GetID());
