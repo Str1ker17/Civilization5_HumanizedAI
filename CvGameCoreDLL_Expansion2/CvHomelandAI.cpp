@@ -2357,6 +2357,10 @@ void CvHomelandAI::ExecuteExplorerMoves()
 				if(bCanFindPath)
 				{
 					pkStepPlot = kPathFinder.GetPathEndTurnPlot();
+					if(pkStepPlot && !m_pPlayer->isHuman() && !pUnit->atPlot(*pkStepPlot) && !IsValidExplorerEndTurnPlot(pUnit.pointer(), pkStepPlot))
+					{
+						bCanFindPath = false;
+					}
 				}
 			}
 
@@ -6058,6 +6062,19 @@ bool CvHomelandAI::IsValidExplorerEndTurnPlot(const CvUnit* pUnit, CvPlot* pPlot
 	if(!pUnit->canMoveInto(*pPlot, CvUnit::MOVEFLAG_PRETEND_CORRECT_EMBARK_STATE))
 	{
 		return false;
+	}
+
+	if(eDomain == DOMAIN_LAND && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian())
+	{
+		bool bEmptyCamp = pPlot->HasBarbarianCamp() && !pPlot->isVisibleEnemyDefender(pUnit);
+		if(!bEmptyCamp && m_pPlayer->IsNearBarbarianCamp(*pPlot, 1))
+		{
+			return false;
+		}
+		if(m_pPlayer->GetPlotDanger(*pPlot) > 0 && m_pPlayer->IsPlotReachableByVisibleEnemy(*pPlot))
+		{
+			return false;
+		}
 	}
 
 	return true;
