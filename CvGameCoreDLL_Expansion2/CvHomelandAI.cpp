@@ -2742,7 +2742,8 @@ void CvHomelandAI::ExecuteWorkerMoves()
 
 			AI_PERF_FORMAT("Homeland-ExecuteWorkerMoves-perf.csv", ("ExecuteWorkerMoves, Turn %03d, %s, Unit %d, at x=%d, y=%d", GC.getGame().getElapsedGameTurns(), m_pPlayer->getCivilizationShortDescription(), pUnit->GetID(), pUnit->getX(), pUnit->getY()) );
 
-			if(pPlot && m_pPlayer->IsPlotUnderImmediateThreat(*pPlot) && !pPlot->getBestDefender(m_pPlayer->GetID()))
+			bool bSafeWorkFirst = !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && pUnit->AI_getUnitAIType() == UNITAI_WORKER;
+			if(pPlot && !bSafeWorkFirst && m_pPlayer->IsPlotUnderImmediateThreat(*pPlot) && !pPlot->getBestDefender(m_pPlayer->GetID()))
 			{
 				if(MoveCivilianToSafety(pUnit.pointer()))
 				{

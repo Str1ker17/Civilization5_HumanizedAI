@@ -1810,7 +1810,10 @@ bool CvBuilderTaskingAI::ShouldBuilderConsiderPlot(CvUnit* pUnit, CvPlot* pPlot)
 		}
 	}
 
-	if(m_pPlayer->GetPlotDanger(*pPlot) > 0 || (!m_pPlayer->isHuman() && m_pPlayer->IsCivilianHazard(*pPlot)) || (m_bAvoidHazard && m_pPlayer->IsWorkerEndPlotHazard(*pPlot)))
+	bool bMajorAI = !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian();
+	bool bUnsafe = bMajorAI ? (m_bAvoidHazard ? m_pPlayer->IsWorkerEndPlotHazard(*pPlot) : m_pPlayer->IsCivilianHazard(*pPlot)) :
+		(m_pPlayer->GetPlotDanger(*pPlot) > 0 || (!m_pPlayer->isHuman() && m_pPlayer->IsCivilianHazard(*pPlot)));
+	if(bUnsafe)
 	{
 		if(m_bLogging)
 		{

@@ -32065,7 +32065,28 @@ bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
 	{
 		return false;
 	}
-	return GetPlotDanger(kPlot) > 0 || IsNearRecentEnemySighting(kPlot, 3, 5) || IsNearBarbarianCamp(kPlot, 3);
+	if(IsNearBarbarianCamp(kPlot, 3))
+	{
+		return true;
+	}
+	if(GetPlotDanger(kPlot) > 0 && IsPlotReachableByVisibleEnemy(kPlot))
+	{
+		return true;
+	}
+	int iTurn = GC.getGame().getGameTurn();
+	for(uint i = 0; i < m_aiEnemySightingPlots.size(); i++)
+	{
+		if(iTurn - m_aiEnemySightingTurns[i] > 5)
+		{
+			continue;
+		}
+		CvPlot* pSightingPlot = GC.getMap().plotByIndex(m_aiEnemySightingPlots[i]);
+		if(pSightingPlot && !pSightingPlot->isVisible(getTeam()) && plotDistance(kPlot.getX(), kPlot.getY(), pSightingPlot->getX(), pSightingPlot->getY()) <= 3)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 //	--------------------------------------------------------------------------------
