@@ -1823,6 +1823,7 @@ public:
 	bool IsNearBarbarianCamp(const CvPlot& kPlot, int iRange) const;
 	void UpdateEnemySightings();
 	void RecallExplorersForDefense();
+	bool IsHomeBarbarianThreatHigh() const;
 	void NoteWorkerGuardShortage();
 	int GetWorkerGuardShortage() const;
 	int GetWorkedUnimprovedBacklog() const;

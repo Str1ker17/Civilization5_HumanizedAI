@@ -5463,7 +5463,7 @@ void CvPlayer::doTurn()
 	if(!isHuman() && !isMinorCiv() && !isBarbarian())
 	{
 		UpdateEnemySightings();
-		if(CityStrategyAIHelpers::IsHomeDefenseShort(*this))
+		if(IsHomeBarbarianThreatHigh())
 		{
 			RecallExplorersForDefense();
 		}
@@ -31990,6 +31990,32 @@ int CvPlayer::GetWorkedUnimprovedBacklog() const
 	m_iBacklogCacheTurn = iTurn;
 	m_iBacklogCache = iBacklog;
 	return iBacklog;
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsHomeBarbarianThreatHigh() const
+{
+	const int iHomeRange = 4;
+	int iThreat = 0;
+	int iLoop;
+	for(CvUnit* pBarbarian = GET_PLAYER(BARBARIAN_PLAYER).firstUnit(&iLoop); pBarbarian != NULL; pBarbarian = GET_PLAYER(BARBARIAN_PLAYER).nextUnit(&iLoop))
+	{
+		CvPlot* pPlot = pBarbarian->plot();
+		if(!pPlot || !pBarbarian->IsCombatUnit() || pBarbarian->getDomainType() != DOMAIN_LAND || !pPlot->isVisible(getTeam()) || pBarbarian->isInvisible(getTeam(), false))
+		{
+			continue;
+		}
+		int iCityLoop;
+		for(const CvCity* pLoopCity = firstCity(&iCityLoop); pLoopCity != NULL; pLoopCity = nextCity(&iCityLoop))
+		{
+			if(plotDistance(pLoopCity->getX(), pLoopCity->getY(), pPlot->getX(), pPlot->getY()) <= iHomeRange)
+			{
+				iThreat += (pBarbarian->GetCurrHitPoints() >= pBarbarian->GetMaxHitPoints()) ? 3 : 2;
+				break;
+			}
+		}
+	}
+	return iThreat >= 6;
 }
 
 //	--------------------------------------------------------------------------------
