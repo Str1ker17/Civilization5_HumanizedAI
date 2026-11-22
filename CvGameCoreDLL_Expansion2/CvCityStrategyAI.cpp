@@ -1076,6 +1076,63 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			}
 		}
 
+		if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && m_pCity->isCapital() && kPlayer.getNumCities() == 1)
+		{
+			int iLandCombatUnits = 0;
+			int iOpeningLoop;
+			for(CvUnit* pOpeningUnit = kPlayer.firstUnit(&iOpeningLoop); pOpeningUnit != NULL; pOpeningUnit = kPlayer.nextUnit(&iOpeningLoop))
+			{
+				if(pOpeningUnit->IsCombatUnit() && pOpeningUnit->getDomainType() == DOMAIN_LAND)
+				{
+					iLandCombatUnits++;
+				}
+			}
+			UnitTypes eOpening = NO_UNIT;
+			BuildingTypes eMonument = NO_BUILDING;
+			BuildingClassTypes eMonumentClass = (BuildingClassTypes)GC.getInfoTypeForString("BUILDINGCLASS_MONUMENT");
+			if(eMonumentClass != NO_BUILDINGCLASS)
+			{
+				eMonument = (BuildingTypes)kPlayer.getCivilizationInfo().getCivilizationBuildings(eMonumentClass);
+				if(eMonument != NO_BUILDING && (m_pCity->GetCityBuildings()->GetNumBuilding(eMonument) > 0 || !m_pCity->canConstruct(eMonument)))
+				{
+					eMonument = NO_BUILDING;
+				}
+			}
+			if(eMonument == NO_BUILDING)
+			{
+				if(iLandCombatUnits < 2)
+				{
+					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
+					if(eOpening == NO_UNIT)
+					{
+						eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
+					}
+				}
+				else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_WORKER, true) == 0)
+				{
+					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_WORKER);
+				}
+				else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_SETTLE, true) == 0)
+				{
+					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_SETTLE);
+				}
+			}
+			if(eMonument != NO_BUILDING)
+			{
+				buildable.m_eBuildableType = CITY_BUILDABLE_BUILDING;
+				buildable.m_iIndex = eMonument;
+				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eMonument, 0);
+				m_Buildables.push_back(buildable, 100000);
+			}
+			if(eOpening != NO_UNIT && eOpening != eIgnoreUnit)
+			{
+				buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
+				buildable.m_iIndex = eOpening;
+				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eOpening, 0);
+				m_Buildables.push_back(buildable, 100000);
+			}
+		}
+
 		// Loop through adding the available projects
 		for(iProjectLoop = 0; iProjectLoop < GC.GetGameProjects()->GetNumProjects(); iProjectLoop++)
 		{
