@@ -3042,11 +3042,7 @@ void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEn
 				else
 				{
 					// There was no escort immediately available.  Let's look for a "safe" city site instead
-
-					if (eOwner == -1 || GET_PLAYER(eOwner).getNumCities() > 1 || GET_PLAYER(eOwner).GetDiplomacyAI()->GetBoldness() > 5) // unless we'd rather play it safe
-					{
-						pNewTarget = FindBestTarget(pOurCivilian, true);
-					}
+					pNewTarget = FindBestTarget(pOurCivilian, true);
 
 					// If no better target, we'll wait it out for an escort
 					if(pNewTarget == NULL)
@@ -3070,6 +3066,7 @@ void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEn
 						m_viListOfUnitsWeStillNeedToBuild.clear();
 
 						// Change the muster point
+						SetTargetPlot(pNewTarget);
 						pArmyAI->SetGoalPlot(pNewTarget);
 						SetMusterPlot(pOurCivilian->plot());
 						pArmyAI->SetXY(GetMusterPlot()->getX(), GetMusterPlot()->getY());
@@ -3136,7 +3133,7 @@ bool CvAIOperationFoundCity::ArmyInPosition(CvArmyAI* pArmy)
 			if(pSettler != NULL && pEscort != NULL && pSettler->plot() == pEscort->plot())
 			{
 				// let's see if the target still makes sense (this is modified from RetargetCivilian)
-				CvPlot* pBetterTarget = FindBestTarget(pSettler, true);
+				CvPlot* pBetterTarget = FindBestTarget(pSettler, false);
 
 				// No targets at all!  Abort
 				if(pBetterTarget == NULL)
@@ -3243,11 +3240,11 @@ bool CvAIOperationFoundCity::ArmyInPosition(CvArmyAI* pArmy)
 /// Find the plot where we want to settle
 CvPlot* CvAIOperationFoundCity::FindBestTarget(CvUnit* pUnit, bool bOnlySafePaths)
 {
-	CvPlot* pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, bOnlySafePaths /*m_bEscorted*/, m_iTargetArea);
+	CvPlot* pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, !bOnlySafePaths, m_iTargetArea);
 	if (pResult == NULL)
 	{
 		m_iTargetArea = -1;
-		pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, bOnlySafePaths /*m_bEscorted*/, -1);
+		pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, !bOnlySafePaths, -1);
 	}
 	return pResult;
 }
