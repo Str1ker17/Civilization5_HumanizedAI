@@ -4754,9 +4754,16 @@ bool CvHomelandAI::MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits)
 				}
 			}
 			bool bSafe = m_pPlayer->IsSafeCivilianEndPlot(*pLoopPlot);
+			bool bSafeTwoTurns = bSafe && !m_pPlayer->IsPlotReachableByVisibleEnemy(*pLoopPlot, 2);
 			bool bOwn = pLoopPlot->getTeam() == m_pPlayer->getTeam();
-			int iLevel = bCity ? 5 : (bSafe ? (bOwn ? 4 : 3) : (bCover ? 2 : (bOwn ? 1 : 0)));
-			int iValue = iLevel * 100000 + 99999 - min(m_pPlayer->GetPlotDanger(*pLoopPlot), 99999);
+			int iLevel = bCity ? 6 : (bSafeTwoTurns ? (bOwn ? 5 : 4) : (bCover ? 3 : (bSafe ? 2 : (bOwn ? 1 : 0))));
+			int iCityDistance = 99;
+			int iCityLoop;
+			for(CvCity* pLoopCity = m_pPlayer->firstCity(&iCityLoop); pLoopCity != NULL; pLoopCity = m_pPlayer->nextCity(&iCityLoop))
+			{
+				iCityDistance = min(iCityDistance, plotDistance(pLoopCity->getX(), pLoopCity->getY(), pLoopPlot->getX(), pLoopPlot->getY()));
+			}
+			int iValue = iLevel * 1000000 + (99 - iCityDistance) * 10000 + 9999 - min(m_pPlayer->GetPlotDanger(*pLoopPlot), 9999);
 
 			aBestPlotList.push_back(pLoopPlot, iValue);
 		}
