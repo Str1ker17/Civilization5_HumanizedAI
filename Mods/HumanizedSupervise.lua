@@ -9,8 +9,11 @@ local g_moves = {};
 local g_selected = nil;
 local g_pausedTurn = -1;
 local g_refresh = false;
-local g_hoverX, g_hoverY = -1, -1;
+local g_pickX, g_pickY = nil, nil;
+local g_pickMarker = InstanceManager:new( "Marker", "Anchor", Controls.MarkerStore );
 local g_attacks = {};
+local g_upgrades = {};
+local g_founded = {};
 local g_notes = tonumber( g_data.GetValue( "SuperviseNotes" ) ) or 0;
 local g_queueLines = InstanceManager:new( "QueueLine", "Button", Controls.QueueStack );
 local g_queueShown = false;
@@ -33,7 +36,7 @@ local function Snapshot()
 			for unit in player:Units() do
 				if unit:GetX() >= 0 and unit:GetY() >= 0 then
 					units[ unit:GetID() ] = { x = unit:GetX(), y = unit:GetY(), hp = unit:GetCurrHitPoints(),
-						combat = unit:IsCombatUnit(), inCity = unit:GetPlot():IsCity(),
+						combat = unit:IsCombatUnit(), inCity = unit:GetPlot():IsCity(), found = unit:IsFound(),
 						name = Locale.ConvertTextKey( GameInfo.Units[ unit:GetUnitType() ].Description ) };
 				end
 			end
@@ -47,9 +50,19 @@ local function Diff( old, new )
 	local moves = {};
 	for playerID, units in pairs( new ) do
 		local before = old[ playerID ] or {};
+		local replaced = {};
 		for unitID, u in pairs( units ) do
 			local b = before[ unitID ];
-			if b == nil then
+			local oldID = g_upgrades[ playerID .. ":" .. unitID ];
+			if b == nil and oldID ~= nil then
+				replaced[ oldID ] = true;
+				local o = before[ oldID ] or u;
+				local name = u.name;
+				if o ~= u then
+					name = o.name .. " -> " .. u.name;
+				end
+				table.insert( moves, { player = playerID, unit = unitID, name = name, fx = o.x, fy = o.y, tx = u.x, ty = u.y, hp0 = o.hp, hp1 = u.hp, kind = "upgrade" } );
+			elseif b == nil then
 				table.insert( moves, { player = playerID, unit = unitID, name = u.name, fx = u.x, fy = u.y, tx = u.x, ty = u.y, hp0 = u.hp, hp1 = u.hp, kind = "new" } );
 			elseif b.x ~= u.x or b.y ~= u.y then
 				table.insert( moves, { player = playerID, unit = unitID, name = u.name, fx = b.x, fy = b.y, tx = u.x, ty = u.y, hp0 = b.hp, hp1 = u.hp, kind = "move" } );
@@ -58,8 +71,21 @@ local function Diff( old, new )
 			end
 		end
 		for unitID, b in pairs( before ) do
-			if units[ unitID ] == nil then
-				table.insert( moves, { player = playerID, unit = unitID, name = b.name, fx = b.x, fy = b.y, tx = b.x, ty = b.y, hp0 = b.hp, hp1 = 0, kind = "lost" } );
+			if units[ unitID ] == nil and not replaced[ unitID ] then
+				local city = nil;
+				if b.found then
+					for i, c in ipairs( g_founded ) do
+						if c.player == playerID and ( city == nil or Map.PlotDistance( b.x, b.y, c.x, c.y ) < Map.PlotDistance( b.x, b.y, g_founded[ city ].x, g_founded[ city ].y ) ) then
+							city = i;
+						end
+					end
+				end
+				if city ~= nil then
+					local c = table.remove( g_founded, city );
+					table.insert( moves, { player = playerID, unit = unitID, name = b.name, fx = b.x, fy = b.y, tx = c.x, ty = c.y, hp0 = b.hp, hp1 = b.hp, kind = "founded" } );
+				else
+					table.insert( moves, { player = playerID, unit = unitID, name = b.name, fx = b.x, fy = b.y, tx = b.x, ty = b.y, hp0 = b.hp, hp1 = 0, kind = "lost" } );
+				end
 			end
 		end
 	end
@@ -67,7 +93,7 @@ local function Diff( old, new )
 end
 
 local function Describe( m )
-	local what = { move = "ход", new = "новый", lost = "потерян", idle = "стоял", attack = "атака" };
+	local what = { move = "ход", new = "новый", lost = "потерян", idle = "стоял", attack = "атака", upgrade = "улучшен", founded = "основал город" };
 	local hp = "";
 	if m.hp0 and m.hp1 and m.hp0 ~= m.hp1 then
 		hp = string.format( ", HP %d -> %d", m.hp0, m.hp1 );
@@ -75,7 +101,13 @@ local function Describe( m )
 	return string.format( "%s: %s (id %d) %s %d,%d -> %d,%d%s", CivName( m.player ), m.name, m.unit, what[ m.kind ], m.fx, m.fy, m.tx, m.ty, hp );
 end
 
+local function ClearPick()
+	g_pickX, g_pickY = nil, nil;
+	g_pickMarker:ResetInstances();
+end
+
 local function Select( m )
+	ClearPick();
 	g_selected = m;
 	g_selectedQueue = nil;
 	Controls.MoveLabel:SetText( "Выбрано: " .. Describe( m ) );
@@ -83,10 +115,26 @@ local function Select( m )
 end
 
 local function SelectQueue( q )
+	ClearPick();
 	g_selectedQueue = q;
 	g_selected = nil;
 	Controls.MoveLabel:SetText( "Выбрано: " .. q.text );
 	Controls.Note:TakeFocus();
+end
+
+local function SelectPlot( x, y )
+	ClearPick();
+	g_selected = nil;
+	g_selectedQueue = nil;
+	g_pickX, g_pickY = x, y;
+	local marker = g_pickMarker:GetInstance();
+	marker.Anchor:SetHexPosition( x, y );
+	marker.Box:SetColor( Vector4( 1, 1, 0, 1 ) );
+	marker.Mark:SetText( "?" );
+	marker.Button:SetToolTipString( string.format( "Клетка %d,%d", x, y ) );
+	Controls.MoveLabel:SetText( string.format( "Выбрана клетка %d,%d", x, y ) );
+	Controls.Note:TakeFocus();
+	Log( string.format( "picked plot=%d,%d", x, y ) );
 end
 
 local function AddQueueLine( q )
@@ -162,7 +210,7 @@ local function Draw()
 		marker.Anchor:SetHexPosition( m.tx, m.ty );
 		marker.Button:SetOffsetVal( ( stacked[ key ] - 1 ) * 22, 0 );
 		marker.Box:SetColor( color );
-		marker.Mark:SetText( ( { move = "", new = "+", lost = "x", idle = "=", attack = "!" } )[ m.kind ] );
+		marker.Mark:SetText( ( { move = "", new = "+", lost = "x", idle = "=", attack = "!", upgrade = "^", founded = "#" } )[ m.kind ] );
 		marker.Button:SetToolTipString( Describe( m ) );
 		marker.Button:RegisterCallback( Mouse.eLClick, function() Select( m ); end );
 	end
@@ -175,16 +223,23 @@ local function Refresh()
 		table.insert( g_moves, a );
 	end
 	g_attacks = {};
+	g_upgrades = {};
+	g_founded = {};
 	g_prev = snap;
 	g_selected = nil;
 	g_selectedQueue = nil;
+	ClearPick();
 	Draw();
 	if g_queueShown then
 		RefreshQueues();
 	end
 	Controls.TurnLabel:SetText( string.format( "Ход %d, пауза. Изменений: %d. Записано заметок: %d", Game.GetGameTurn(), #g_moves, g_notes ) );
-	Controls.MoveLabel:SetText( "Клик по маркеру выбирает ход. Без выбора заметка относится к клетке под курсором. Маркеры: + новый, x потерян, = стоял, ! атака (красный пунктир)." );
-	Log( string.format( "paused turn=%d changes=%d", Game.GetGameTurn(), #g_moves ) );
+	Controls.MoveLabel:SetText( "Клик по маркеру выбирает ход, правый клик по карте выбирает клетку. Маркеры: + новый, x потерян, = стоял, ! атака (красный пунктир), ^ улучшен, # основал город." );
+	local kinds = {};
+	for _, m in ipairs( g_moves ) do
+		kinds[ m.kind ] = ( kinds[ m.kind ] or 0 ) + 1;
+	end
+	Log( string.format( "paused turn=%d changes=%d upgrade=%d founded=%d lost=%d", Game.GetGameTurn(), #g_moves, kinds.upgrade or 0, kinds.founded or 0, kinds.lost or 0 ) );
 end
 
 local function OnBad()
@@ -198,8 +253,20 @@ local function OnBad()
 		local m = g_selected;
 		line = string.format( "bad turn=%d player=%d civ=%s unit=%d name=%s kind=%s from=%d,%d to=%d,%d note=%s",
 			Game.GetGameTurn(), m.player, CivName( m.player ), m.unit, m.name, m.kind, m.fx, m.fy, m.tx, m.ty, note );
+	elseif g_pickX ~= nil then
+		local plot = Map.GetPlot( g_pickX, g_pickY );
+		local owner = "";
+		local city = "";
+		if plot:GetOwner() >= 0 then
+			owner = CivName( plot:GetOwner() );
+		end
+		if plot:IsCity() then
+			city = Locale.ConvertTextKey( plot:GetPlotCity():GetNameKey() );
+		end
+		line = string.format( "bad turn=%d plot=%d,%d owner=%s city=%s note=%s", Game.GetGameTurn(), g_pickX, g_pickY, owner, city, note );
 	else
-		line = string.format( "bad turn=%d plot=%d,%d note=%s", Game.GetGameTurn(), g_hoverX, g_hoverY, note );
+		Controls.MoveLabel:SetText( "Сначала выбери маркер хода, строку очереди или клетку правым кликом. Текст заметки сохранён в поле." );
+		return;
 	end
 	g_notes = g_notes + 1;
 	g_data.SetValue( "SuperviseNote" .. g_notes, line );
@@ -213,6 +280,7 @@ end
 local function OnNext()
 	g_dots:ResetInstances();
 	g_markers:ResetInstances();
+	ClearPick();
 	g_selected = nil;
 	g_selectedQueue = nil;
 	Controls.TurnLabel:SetText( "ИИ ходит..." );
@@ -227,11 +295,22 @@ Controls.BadButton:RegisterCallback( Mouse.eLClick, OnBad );
 Controls.NextButton:RegisterCallback( Mouse.eLClick, OnNext );
 Controls.QueueButton:RegisterCallback( Mouse.eLClick, OnQueue );
 
-Events.SerialEventMouseOverHex.Add( function( hexX, hexY )
-	g_hoverX, g_hoverY = hexX, hexY;
-	if g_selected == nil and Game.IsPaused() then
-		Controls.MoveLabel:SetText( string.format( "Заметка без выбора пойдёт к клетке %d,%d", hexX, hexY ) );
+ContextPtr:SetInputHandler( function( uiMsg, wParam, lParam )
+	if uiMsg == MouseEvents.RButtonUp and Game.IsPaused() then
+		local x, y = UI.GetMouseOverHex();
+		if x ~= nil and Map.GetPlot( x, y ) ~= nil then
+			SelectPlot( x, y );
+		end
 	end
+	return false;
+end );
+
+GameEvents.UnitUpgraded.Add( function( playerID, oldID, newID, goody )
+	g_upgrades[ playerID .. ":" .. newID ] = oldID;
+end );
+
+GameEvents.PlayerCityFounded.Add( function( playerID, x, y )
+	table.insert( g_founded, { player = playerID, x = x, y = y } );
 end );
 
 GameEvents.HumanizedCombat.Add( function( playerID, unitID, fromX, fromY, toX, toY )
