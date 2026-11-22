@@ -1076,60 +1076,32 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			}
 		}
 
-		if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && m_pCity->isCapital() && kPlayer.getNumCities() == 1)
+		if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() &&
+			(kPlayer.IsNearRecentEnemySighting(*m_pCity->plot(), 5, 5) || kPlayer.IsNearBarbarianCamp(*m_pCity->plot(), 6)))
 		{
 			int iLandCombatUnits = 0;
-			int iOpeningLoop;
-			for(CvUnit* pOpeningUnit = kPlayer.firstUnit(&iOpeningLoop); pOpeningUnit != NULL; pOpeningUnit = kPlayer.nextUnit(&iOpeningLoop))
+			int iThreatLoop;
+			for(CvUnit* pThreatUnit = kPlayer.firstUnit(&iThreatLoop); pThreatUnit != NULL; pThreatUnit = kPlayer.nextUnit(&iThreatLoop))
 			{
-				if(pOpeningUnit->IsCombatUnit() && pOpeningUnit->getDomainType() == DOMAIN_LAND)
+				if(pThreatUnit->IsCombatUnit() && pThreatUnit->getDomainType() == DOMAIN_LAND)
 				{
 					iLandCombatUnits++;
 				}
 			}
-			UnitTypes eOpening = NO_UNIT;
-			BuildingTypes eMonument = NO_BUILDING;
-			BuildingClassTypes eMonumentClass = (BuildingClassTypes)GC.getInfoTypeForString("BUILDINGCLASS_MONUMENT");
-			if(eMonumentClass != NO_BUILDINGCLASS)
+			if(iLandCombatUnits < 2)
 			{
-				eMonument = (BuildingTypes)kPlayer.getCivilizationInfo().getCivilizationBuildings(eMonumentClass);
-				if(eMonument != NO_BUILDING && (m_pCity->GetCityBuildings()->GetNumBuilding(eMonument) > 0 || !m_pCity->canConstruct(eMonument)))
+				UnitTypes eGuard = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
+				if(eGuard == NO_UNIT)
 				{
-					eMonument = NO_BUILDING;
+					eGuard = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
 				}
-			}
-			if(eMonument == NO_BUILDING)
-			{
-				if(iLandCombatUnits < 2)
+				if(eGuard != NO_UNIT && eGuard != eIgnoreUnit)
 				{
-					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
-					if(eOpening == NO_UNIT)
-					{
-						eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
-					}
+					buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
+					buildable.m_iIndex = eGuard;
+					buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eGuard, 0);
+					m_Buildables.push_back(buildable, 100000);
 				}
-				else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_WORKER, true) == 0)
-				{
-					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_WORKER);
-				}
-				else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_SETTLE, true) == 0)
-				{
-					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_SETTLE);
-				}
-			}
-			if(eMonument != NO_BUILDING)
-			{
-				buildable.m_eBuildableType = CITY_BUILDABLE_BUILDING;
-				buildable.m_iIndex = eMonument;
-				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eMonument, 0);
-				m_Buildables.push_back(buildable, 100000);
-			}
-			if(eOpening != NO_UNIT && eOpening != eIgnoreUnit)
-			{
-				buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
-				buildable.m_iIndex = eOpening;
-				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eOpening, 0);
-				m_Buildables.push_back(buildable, 100000);
 			}
 		}
 
