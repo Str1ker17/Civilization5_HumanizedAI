@@ -26,12 +26,17 @@ def mean_at(runs, turn, metric):
     return sum(values) / len(values) if values else None
 
 
-def last_full_turn(runs):
+def civs_at(runs, turn):
+    return sum(len(data.get(turn, {})) for data in runs)
+
+
+def last_complete_turn(runs):
     turns = []
     for data in runs:
-        counts = {t: len(c) for t, c in data.items()}
-        full = max(counts.values())
-        turns.append(max(t for t, n in counts.items() if n == full))
+        last = max(data)
+        if last - 1 in data and len(data[last]) < len(data[last - 1]):
+            last -= 1
+        turns.append(last)
     return min(turns)
 
 
@@ -42,9 +47,13 @@ def main():
     cut = args.index('--')
     a = [load(r) for r in args[:cut]]
     b = [load(r) for r in args[cut + 1:]]
-    end = min(last_full_turn(a), last_full_turn(b))
+    end = min(last_complete_turn(a), last_complete_turn(b))
     turns = sorted({t for t in (25, 50, 75, end) if t <= end})
-    print('runs: A=%d B=%d, mean per civ' % (len(a), len(b)))
+    print('runs: A=%d B=%d, mean per living civ' % (len(a), len(b)))
+    print('%-16s %5s %10s %10s' % ('living civs', '', 'A', 'B'))
+    for turn in turns:
+        print('%-16s %5d %10d %10d' % ('', turn, civs_at(a, turn), civs_at(b, turn)))
+    print()
     print('%-16s %5s %10s %10s %8s' % ('metric', 'turn', 'A', 'B', 'B/A'))
     for metric in METRICS:
         for turn in turns:
