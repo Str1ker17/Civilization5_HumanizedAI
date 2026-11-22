@@ -3070,7 +3070,7 @@ int EconomicAIHelpers::GetDesiredCityCount(CvPlayer* pPlayer)
 	}
 
 	iDesiredCities = (iDesiredCities * iFlavorExpansion) / max(iFlavorGrowth, 1);
-	int iDifficulty = max(0,GC.getGame().getHandicapInfo().GetID() - 3);
+	int iDifficulty = max(0,GC.getGame().GetAIBehaviorHandicapID() - 3);
 	iDesiredCities += iDifficulty;
 
 	// scale this based on world size

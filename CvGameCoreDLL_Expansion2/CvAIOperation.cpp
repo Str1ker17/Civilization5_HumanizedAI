@@ -2161,7 +2161,7 @@ void CvAIOperationBasicCityAttack::Write(FDataStream& kStream) const
 
 MultiunitFormationTypes CvAIOperationBasicCityAttack::GetFormation() const
 {
-	return (GC.getGame().getHandicapInfo().GetID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_BASIC_CITY_ATTACK_FORCE;
+	return MilitaryAIHelpers::GetCityAttackFormation(&GET_PLAYER(m_eOwner));
 }
 
 /// Same as default version except if just gathered forces, check to see if a better target has presented itself
@@ -2259,7 +2259,7 @@ CvAIOperationSneakCityAttack::CvAIOperationSneakCityAttack()
 }
 MultiunitFormationTypes CvAIOperationSneakCityAttack::GetFormation() const
 {
-	return (GC.getGame().getHandicapInfo().GetID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_BASIC_CITY_ATTACK_FORCE;
+	return MilitaryAIHelpers::GetCityAttackFormation(&GET_PLAYER(m_eOwner));
 }
 
 CvAIOperationQuickSneakCityAttack::CvAIOperationQuickSneakCityAttack()
@@ -2285,7 +2285,7 @@ CvAIOperationCityStateAttack::CvAIOperationCityStateAttack()
 }
 MultiunitFormationTypes CvAIOperationCityStateAttack::GetFormation() const
 {
-	return (GC.getGame().getHandicapInfo().GetID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_CITY_STATE_ATTACK_FORCE;
+	return (GC.getGame().GetAIBehaviorHandicapID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_CITY_STATE_ATTACK_FORCE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

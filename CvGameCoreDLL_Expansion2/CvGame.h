@@ -332,6 +332,7 @@ public:
 	void setActivePlayer(PlayerTypes eNewValue, bool bForceHotSeat = false, bool bAutoplaySwitch = false);
 
 	CvHandicapInfo& getHandicapInfo() const;
+	int GetAIBehaviorHandicapID() const;
 	HandicapTypes getHandicapType() const;
 	void setHandicapType(HandicapTypes eHandicap);
 
