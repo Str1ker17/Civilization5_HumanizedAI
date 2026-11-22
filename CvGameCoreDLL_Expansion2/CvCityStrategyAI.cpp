@@ -1076,35 +1076,6 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			}
 		}
 
-		if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() &&
-			(kPlayer.IsNearRecentEnemySighting(*m_pCity->plot(), 5, 5) || kPlayer.IsNearBarbarianCamp(*m_pCity->plot(), 6)))
-		{
-			int iLandCombatUnits = 0;
-			int iThreatLoop;
-			for(CvUnit* pThreatUnit = kPlayer.firstUnit(&iThreatLoop); pThreatUnit != NULL; pThreatUnit = kPlayer.nextUnit(&iThreatLoop))
-			{
-				if(pThreatUnit->IsCombatUnit() && pThreatUnit->getDomainType() == DOMAIN_LAND)
-				{
-					iLandCombatUnits++;
-				}
-			}
-			if(iLandCombatUnits < 2)
-			{
-				UnitTypes eGuard = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
-				if(eGuard == NO_UNIT)
-				{
-					eGuard = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
-				}
-				if(eGuard != NO_UNIT && eGuard != eIgnoreUnit)
-				{
-					buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
-					buildable.m_iIndex = eGuard;
-					buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eGuard, 0);
-					m_Buildables.push_back(buildable, 100000);
-				}
-			}
-		}
-
 		// Loop through adding the available projects
 		for(iProjectLoop = 0; iProjectLoop < GC.GetGameProjects()->GetNumProjects(); iProjectLoop++)
 		{
