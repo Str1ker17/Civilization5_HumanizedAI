@@ -1831,8 +1831,9 @@ public:
 	bool IsCivilianHazard(const CvPlot& kPlot) const;
 	bool IsWorkerEndPlotHazard(CvPlot& kPlot) const;
 	bool IsWorkerCoverWanted(CvPlot& kPlot) const;
+	bool IsEnemyNear(const CvPlot& kPlot, int iRange) const;
 	bool IsUnsafeForCivilians(CvPlot& kPlot) const;
-	bool IsPlotReachableByVisibleEnemy(const CvPlot& kPlot, int iTurns = 1) const;
+	bool IsPlotReachableByVisibleEnemy(const CvPlot& kPlot) const;
 	bool IsSafeCivilianEndPlot(CvPlot& kPlot) const;
 	void AddCivilianLoss(const CvPlot& kPlot, UnitTypes eUnit, PlayerTypes eCaptor);
 	void LogCivilianExposure();
