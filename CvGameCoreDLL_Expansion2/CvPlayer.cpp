@@ -32079,7 +32079,11 @@ bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
 	{
 		return true;
 	}
-	if(IsPlotReachableByVisibleEnemy(kPlot, 2))
+	if(IsPlotReachableByVisibleEnemy(kPlot, 1))
+	{
+		return true;
+	}
+	if(IsPlotReachableByVisibleEnemy(kPlot, 2) && !CanGuardReachPlotNextTurn(kPlot))
 	{
 		return true;
 	}
@@ -32146,6 +32150,38 @@ bool CvPlayer::IsPlotReachableByVisibleEnemy(const CvPlot& kPlot, int iTurns) co
 			{
 				return true;
 			}
+		}
+	}
+	return false;
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::CanGuardReachPlotNextTurn(const CvPlot& kPlot) const
+{
+	CvTwoLayerPathFinder& kPathFinder = GC.getPathFinder();
+	int iLoop;
+	for(const CvUnit* pGuard = firstUnit(&iLoop); pGuard != NULL; pGuard = nextUnit(&iLoop))
+	{
+		if(!pGuard->IsCombatUnit() || pGuard->getDomainType() != DOMAIN_LAND || pGuard->isEmbarked() || pGuard->getArmyID() != FFreeList::INVALID_INDEX || pGuard->GetCurrHitPoints() * 2 < pGuard->GetMaxHitPoints())
+		{
+			continue;
+		}
+		if(plotDistance(pGuard->getX(), pGuard->getY(), kPlot.getX(), kPlot.getY()) > pGuard->baseMoves())
+		{
+			continue;
+		}
+		if(!kPathFinder.GenerateUnitPath(pGuard, pGuard->getX(), pGuard->getY(), kPlot.getX(), kPlot.getY(), MOVE_UNITS_IGNORE_DANGER, false))
+		{
+			continue;
+		}
+		int iPathTurns = kPathFinder.GetLastNode()->m_iData2;
+		if(pGuard->movesLeft() < pGuard->maxMoves())
+		{
+			iPathTurns--;
+		}
+		if(iPathTurns <= 1)
+		{
+			return true;
 		}
 	}
 	return false;
