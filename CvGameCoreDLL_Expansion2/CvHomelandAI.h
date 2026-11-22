@@ -214,6 +214,7 @@ public:
 	// Public exploration routines
 	bool IsAnyValidExploreMoves(const CvUnit* pUnit) const;
 	bool ExecuteSpecialExploreMove(CvUnit* pUnit, CvPlot* pPlot);
+	bool MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits = false);
 
 	// Public logging
 	void LogHomelandMessage(CvString& strMsg);
@@ -300,7 +301,6 @@ private:
 	bool FindUnitsForThisMove(AIHomelandMove eMove, bool bFirstTime);
 	CvPlot* FindPatrolTarget(CvUnit* pUnit);
 	bool GetBestUnitToReachTarget(CvPlot* pTarget, int iMaxTurns);
-	bool MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits = false);
 	bool MoveToEmptySpaceNearTarget(CvUnit* pUnit, CvPlot* pTarget, bool bLand=true);
 	CvCity* ChooseBestFreeWonderCity(BuildingTypes eWonder, UnitHandle pEngineer);
 	CvPlot* FindArchaeologistTarget(CvUnit *pUnit);

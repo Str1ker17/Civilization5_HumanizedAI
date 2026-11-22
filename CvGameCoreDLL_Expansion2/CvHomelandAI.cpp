@@ -1295,53 +1295,6 @@ void CvHomelandAI::PlotWorkerGuardMoves()
 			MoveCivilianToSafety(pWorker, false);
 		}
 	}
-
-	for(CvUnit* pWorker = m_pPlayer->firstUnit(&iLoop); pWorker != NULL; pWorker = m_pPlayer->nextUnit(&iLoop))
-	{
-		if(pWorker->AI_getUnitAIType() != UNITAI_WORKER || pWorker->getDomainType() != DOMAIN_LAND)
-		{
-			continue;
-		}
-		CvPlot* pPlot = pWorker->plot();
-		if(!pPlot || pPlot->isCity() || pPlot->getNumDefenders(m_pPlayer->GetID()) > 0)
-		{
-			continue;
-		}
-		if(m_pPlayer->GetPlotDanger(*pPlot) <= 0 && !m_pPlayer->IsNearRecentEnemySighting(*pPlot, 3, 5) && !m_pPlayer->IsNearBarbarianCamp(*pPlot, 3))
-		{
-			continue;
-		}
-
-		UnitHandle pBestGuard;
-		int iBestDistance = MAX_INT;
-		for(list<int>::iterator it = m_CurrentTurnUnits.begin(); it != m_CurrentTurnUnits.end(); ++it)
-		{
-			UnitHandle pUnit = m_pPlayer->getUnit(*it);
-			if(!pUnit || !pUnit->IsCombatUnit() || pUnit->getDomainType() != DOMAIN_LAND || pUnit->isEmbarked() || pUnit->getArmyID() != FFreeList::INVALID_INDEX || pUnit->GetCurrHitPoints() * 2 < pUnit->GetMaxHitPoints())
-			{
-				continue;
-			}
-			int iDistance = plotDistance(pUnit->getX(), pUnit->getY(), pPlot->getX(), pPlot->getY());
-			if(iDistance < iBestDistance && CanReachInXTurns(pUnit, pPlot, 1))
-			{
-				pBestGuard = pUnit;
-				iBestDistance = iDistance;
-			}
-		}
-
-		if(pBestGuard)
-		{
-			pBestGuard->PushMission(CvTypes::getMISSION_MOVE_TO(), pPlot->getX(), pPlot->getY());
-			pBestGuard->finishMoves();
-			UnitProcessed(pBestGuard->GetID());
-			if(GC.getLogging() && GC.getAILogging())
-			{
-				CvString strLogString;
-				strLogString.Format("Guarding worker at X: %d, Y: %d with %s", pPlot->getX(), pPlot->getY(), pBestGuard->getName().GetCString());
-				LogHomelandMessage(strLogString);
-			}
-		}
-	}
 }
 
 /// Send out work boats to harvest resources
@@ -2942,7 +2895,15 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 		aBestPlotList.reserve(100);
 
 		UnitHandle pUnit = m_pPlayer->getUnit(m_CurrentMoveUnits[iI].GetID());
-		if(pUnit)
+		if(pUnit && !pUnit->IsCombatUnit())
+		{
+			if(MoveCivilianToSafety(pUnit.pointer(), false))
+			{
+				pUnit->finishMoves();
+				UnitProcessed(pUnit->GetID());
+			}
+		}
+		else if(pUnit)
 		{
 			CvPlot* pBestPlot = NULL;
 
@@ -2964,11 +2925,6 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 						continue;
 					}
 
-					if(IsCivilianSpotTaken(pUnit.pointer(), pPlot))
-					{
-						continue;
-					}
-
 					//   prefer being in a city with the lowest danger value
 					//   prefer being in a plot with no danger value
 					//   prefer being under a unit with the lowest danger value
@@ -2976,7 +2932,7 @@ void CvHomelandAI::ExecuteMovesToSafestPlot()
 					//   prefer the lowest danger value
 
 					iDanger = m_pPlayer->GetPlotDanger(*pPlot);
-					bool bIsZeroDanger = pUnit->IsCombatUnit() ? (iDanger <= 0) : m_pPlayer->IsSafeCivilianEndPlot(*pPlot);
+					bool bIsZeroDanger = (iDanger <= 0) && (pUnit->IsCombatUnit() || !m_pPlayer->IsCivilianHazard(*pPlot));
 					bool bIsInCity = pPlot->isFriendlyCity(*pUnit, false);
 					bool bIsInCover = (pPlot->getNumDefenders(m_pPlayer->GetID()) > 0) && !pUnit->IsCanDefend();
 					bool bIsInTerritory = (pPlot->getTeam() == m_pPlayer->getTeam());
@@ -4784,48 +4740,22 @@ bool CvHomelandAI::MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits)
 				continue;
 			}
 
-			int iValue = 0;
-			if(pLoopPlot->getOwner() != NO_PLAYER && GET_PLAYER(pLoopPlot->getOwner()).getTeam() == m_pPlayer->getTeam())
-			{
-				// if this is within our territory, provide a minor benefit
-				iValue += 1;
-			}
-
-			CvCity* pCity = pLoopPlot->getPlotCity();
-			if(pCity && pCity->getTeam() == pUnit->getTeam())
-			{
-				iValue += pCity->getStrengthValue() * (GC.getMAX_CITY_DEFENSE_DAMAGE() - pCity->getDamage());
-			}
-			else if(!bIgnoreUnits)
+			bool bCity = pLoopPlot->isFriendlyCity(*pUnit, false);
+			bool bCover = false;
+			if(!bCity && !bIgnoreUnits)
 			{
 				IDInfo* pUnitNode = pLoopPlot->headUnitNode();
-				while(pUnitNode != NULL)
+				while(pUnitNode != NULL && !bCover)
 				{
 					CvUnit* pLoopUnit = ::getUnit(*pUnitNode);
 					pUnitNode = pLoopPlot->nextUnitNode(pUnitNode);
-
-					if(pLoopUnit && pLoopUnit->getOwner() == pUnit->getOwner())
-					{
-						if(pLoopUnit->IsCanDefend())
-						{
-							if(pLoopUnit != pUnit)
-							{
-								if(pLoopUnit->isWaiting() || !(pLoopUnit->canMove()))
-								{
-									iValue += pLoopUnit->GetMaxDefenseStrength(pLoopPlot, NULL) * pLoopUnit->GetCurrHitPoints();
-								}
-							}
-						}
-					}
+					bCover = pLoopUnit && pLoopUnit != pUnit && pLoopUnit->getOwner() == pUnit->getOwner() && pLoopUnit->IsCanDefend() && (pLoopUnit->isWaiting() || !pLoopUnit->canMove());
 				}
 			}
-
-			int iDanger = m_pPlayer->GetPlotDanger(*pLoopPlot);
-			if(iDanger > 0 && !m_pPlayer->IsPlotReachableByVisibleEnemy(*pLoopPlot))
-			{
-				iDanger = 0;
-			}
-			iValue -= iDanger;
+			bool bSafe = m_pPlayer->IsSafeCivilianEndPlot(*pLoopPlot);
+			bool bOwn = pLoopPlot->getTeam() == m_pPlayer->getTeam();
+			int iLevel = bCity ? 5 : (bSafe ? (bOwn ? 4 : 3) : (bCover ? 2 : (bOwn ? 1 : 0)));
+			int iValue = iLevel * 100000 + 99999 - min(m_pPlayer->GetPlotDanger(*pLoopPlot), 99999);
 
 			aBestPlotList.push_back(pLoopPlot, iValue);
 		}

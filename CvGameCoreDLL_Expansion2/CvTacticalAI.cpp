@@ -6371,7 +6371,15 @@ void CvTacticalAI::ExecuteMovesToSafestPlot()
 	for(unsigned int iI = 0; iI < m_CurrentMoveUnits.size(); iI++)
 	{
 		UnitHandle pUnit = m_pPlayer->getUnit(m_CurrentMoveUnits[iI].GetID());
-		if(pUnit)
+		if(pUnit && !pUnit->IsCombatUnit() && !m_pPlayer->isBarbarian())
+		{
+			if(m_pPlayer->GetHomelandAI()->MoveCivilianToSafety(pUnit.pointer(), false))
+			{
+				pUnit->finishMoves();
+				UnitProcessed(pUnit->GetID(), false);
+			}
+		}
+		else if(pUnit)
 		{
 #if defined(PATH_PLAN_LAST)
 			aCityList.clear();
