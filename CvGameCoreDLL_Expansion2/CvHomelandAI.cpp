@@ -959,7 +959,7 @@ void CvHomelandAI::PlotHealMoves()
 				// If I'm a naval unit I need to be in friendly territory
 				if(pUnit->getDomainType() != DOMAIN_SEA || pUnit->plot()->IsFriendlyTerritory(m_pPlayer->GetID()))
 				{
-					if (!pUnit->IsUnderEnemyRangedAttack())
+					if (!pUnit->IsUnderEnemyRangedAttack() && m_pPlayer->GetPlotDanger(*pUnit->plot()) <= 0)
 					{
 						CvHomelandUnit unit;
 						unit.SetID(pUnit->GetID());
@@ -1543,7 +1543,7 @@ void CvHomelandAI::PlotUpgradeMoves()
 		}
 
 		iFlavorMilitaryTraining = max(1,iFlavorMilitaryTraining/3);
-		int iBonusUpgrades = max(0,GC.getGame().getHandicapInfo().GetID() - 5); // more at the higher difficulties (the AI should have more money to spend)
+		int iBonusUpgrades = max(0,GC.getGame().GetAIBehaviorHandicapID() - 5); // more at the higher difficulties (the AI should have more money to spend)
 		iFlavorMilitaryTraining += iBonusUpgrades;
 
 		// Try to find a unit that can upgrade immediately

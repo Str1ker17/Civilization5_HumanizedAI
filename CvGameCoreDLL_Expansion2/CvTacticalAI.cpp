@@ -6170,6 +6170,18 @@ void CvTacticalAI::ExecuteAttack(CvTacticalTarget* pTarget, CvPlot* pTargetPlot,
 			{
 				if(pUnit->getMoves() > 0 && (!bMustSurviveAttack || ((m_CurrentMoveUnits[iI].GetExpectedSelfDamage() + pUnit->getDamage()) < pUnit->GetMaxHitPoints())))
 				{
+					if(!pUnit->IsCanAttackRanged() && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && !pTargetPlot->isCity() &&
+						iDamageRemaining > m_CurrentMoveUnits[iI].GetExpectedTargetDamage() &&
+						(pUnit->GetCurrHitPoints() - m_CurrentMoveUnits[iI].GetExpectedSelfDamage()) * 2 < pUnit->GetMaxHitPoints())
+					{
+						if(GC.getLogging() && GC.getAILogging())
+						{
+							CvString strMsg;
+							strMsg.Format("Not attacking with unit. Would be left too weak next to enemy, %s, X: %d, Y: %d", pUnit->getName().GetCString(), pUnit->getX(), pUnit->getY());
+							LogTacticalMessage(strMsg);
+						}
+						continue;
+					}
 					// Are we a melee unit
 					if(!pUnit->IsCanAttackRanged())
 					{
@@ -7616,6 +7628,15 @@ bool CvTacticalAI::ExecuteOneProtectedBombard(CvTacticalTarget& kTarget)
 	return false;
 }
 
+bool CvTacticalAI::IsFlankPlotTooDangerous(CvUnit* pUnit, CvPlot* pPlot)
+{
+	if(!pUnit || m_pPlayer->isHuman() || m_pPlayer->isBarbarian() || pUnit->plot() == pPlot)
+	{
+		return false;
+	}
+	return m_pPlayer->GetPlotDanger(*pPlot) * 2 > pUnit->GetBaseCombatStrengthConsideringDamage() * 100 * 3;
+}
+
 /// Take a multi-hex attack on an enemy unit this turn
 bool CvTacticalAI::ExecuteFlankAttack(CvTacticalTarget& kTarget)
 {
@@ -7683,7 +7704,18 @@ bool CvTacticalAI::ExecuteFlankAttack(CvTacticalTarget& kTarget)
 			for(unsigned int iI = 0; iI < m_TempTargets.size(); iI++)
 			{
 				pLoopPlot = GC.getMap().plot(m_TempTargets[iI].GetTargetX(), m_TempTargets[iI].GetTargetY());
-				if(!FindClosestUnit(pLoopPlot, 1, false/*bMustHaveHalfHP*/, false /*bMustBeRangedUnit*/, 0 /*iRangeRequired*/, false /*bNeedsIgnoreLOS*/, true /*bMustBeMeleeUnit*/))
+				int iEligible = 0;
+				if(FindClosestUnit(pLoopPlot, 1, false/*bMustHaveHalfHP*/, false /*bMustBeRangedUnit*/, 0 /*iRangeRequired*/, false /*bNeedsIgnoreLOS*/, true /*bMustBeMeleeUnit*/))
+				{
+					for(unsigned int jJ = 0; jJ < m_CurrentMoveUnits.size(); jJ++)
+					{
+						if(!IsFlankPlotTooDangerous(m_pPlayer->getUnit(m_CurrentMoveUnits[jJ].GetID()), pLoopPlot))
+						{
+							iEligible++;
+						}
+					}
+				}
+				if(iEligible == 0)
 				{
 					iFillableHexes--;
 					if(iFillableHexes < 2)
@@ -7696,10 +7728,14 @@ bool CvTacticalAI::ExecuteFlankAttack(CvTacticalTarget& kTarget)
 					// Save off the units that could get here
 					for(unsigned int jJ = 0; jJ < m_CurrentMoveUnits.size(); jJ++)
 					{
+						if(IsFlankPlotTooDangerous(m_pPlayer->getUnit(m_CurrentMoveUnits[jJ].GetID()), pLoopPlot))
+						{
+							continue;
+						}
 						CvBlockingUnit block;
 						block.SetUnitID(m_CurrentMoveUnits[jJ].GetID());
 						block.SetPlot(pLoopPlot);
-						block.SetNumChoices((int)m_CurrentMoveUnits.size());
+						block.SetNumChoices(iEligible);
 						block.SetDistanceToTarget(m_CurrentMoveUnits[jJ].GetMovesToTarget());
 						m_PotentialBlocks.push_back(block);
 					}
