@@ -1830,6 +1830,7 @@ public:
 	bool IsNearRecentEnemySighting(const CvPlot& kPlot, int iRange, int iTurns) const;
 	bool IsCivilianHazard(const CvPlot& kPlot) const;
 	bool IsWorkerEndPlotHazard(CvPlot& kPlot) const;
+	bool IsWorkerCoverWanted(CvPlot& kPlot) const;
 	bool IsUnsafeForCivilians(CvPlot& kPlot) const;
 	bool IsPlotReachableByVisibleEnemy(const CvPlot& kPlot) const;
 	bool IsSafeCivilianEndPlot(CvPlot& kPlot) const;

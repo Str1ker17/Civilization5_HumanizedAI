@@ -32059,6 +32059,16 @@ bool CvPlayer::IsCivilianHazard(const CvPlot& kPlot) const
 }
 
 //	--------------------------------------------------------------------------------
+bool CvPlayer::IsWorkerCoverWanted(CvPlot& kPlot) const
+{
+	if(kPlot.isCity() || kPlot.getNumDefenders(GetID()) > 0)
+	{
+		return false;
+	}
+	return GetPlotDanger(kPlot) > 0 || IsNearRecentEnemySighting(kPlot, 3, 5) || IsNearBarbarianCamp(kPlot, 3);
+}
+
+//	--------------------------------------------------------------------------------
 bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
 {
 	if(kPlot.isCity() || kPlot.getNumDefenders(GetID()) > 0)

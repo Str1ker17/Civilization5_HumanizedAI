@@ -1215,7 +1215,7 @@ void CvHomelandAI::PlotWorkerCoverMoves()
 			continue;
 		}
 		CvPlot* pEndPlot = GetWorkerEndPlot(pWorker, aDirective[0]);
-		if(!pEndPlot || !m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot))
+		if(!pEndPlot || !m_pPlayer->IsWorkerCoverWanted(*pEndPlot))
 		{
 			continue;
 		}
