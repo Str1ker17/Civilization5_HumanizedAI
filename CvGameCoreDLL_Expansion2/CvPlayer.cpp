@@ -5463,7 +5463,7 @@ void CvPlayer::doTurn()
 	if(!isHuman() && !isMinorCiv() && !isBarbarian())
 	{
 		UpdateEnemySightings();
-		if(IsHomeBarbarianThreatHigh())
+		if(CityStrategyAIHelpers::IsHomeDefenseShort(*this))
 		{
 			RecallExplorersForDefense();
 		}
