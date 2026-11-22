@@ -4800,7 +4800,7 @@ bool CvHomelandAI::MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits)
 					CvString strLogString;
 					CvString strTemp;
 					strTemp = GC.getUnitInfo(pUnit->getUnitType())->GetDescription();
-					strLogString.Format("%s (%d) tried to move to safety but is at the best spot, X: %d, Y: %d", strTemp.GetCString(), pUnit->GetID(), pBestPlot->getX(), pBestPlot->getY());
+					strLogString.Format("%s (%d) tried to move to safety but is at the best spot, X: %d, Y: %d, danger %d, reach %d", strTemp.GetCString(), pUnit->GetID(), pBestPlot->getX(), pBestPlot->getY(), m_pPlayer->GetPlotDanger(*pBestPlot), m_pPlayer->IsPlotReachableByVisibleEnemy(*pBestPlot) ? 1 : 0);
 					LogHomelandMessage(strLogString);
 				}
 
@@ -5674,6 +5674,19 @@ bool CvHomelandAI::ExecuteWorkerMove(CvUnit* pUnit)
 	{
 		m_pPlayer->GetBuilderTaskingAI()->SetAvoidHazard(false);
 		CvPlot* pEndPlot = bHasDirective ? GetWorkerEndPlot(pUnit, aDirective[0]) : NULL;
+		if(GC.getLogging() && GC.getAILogging())
+		{
+			CvString strLogString;
+			if(pEndPlot)
+			{
+				strLogString.Format("Worker (%d) job at X: %d, Y: %d, from X: %d, Y: %d, end X: %d, Y: %d, danger %d, reach %d, hazard %d", pUnit->GetID(), aDirective[0].m_sX, aDirective[0].m_sY, pUnit->getX(), pUnit->getY(), pEndPlot->getX(), pEndPlot->getY(), m_pPlayer->GetPlotDanger(*pEndPlot), m_pPlayer->IsPlotReachableByVisibleEnemy(*pEndPlot) ? 1 : 0, m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot) ? 1 : 0);
+			}
+			else
+			{
+				strLogString.Format("Worker (%d) no safe job, at X: %d, Y: %d, danger %d, reach %d", pUnit->GetID(), pUnit->getX(), pUnit->getY(), m_pPlayer->GetPlotDanger(*pUnit->plot()), m_pPlayer->IsPlotReachableByVisibleEnemy(*pUnit->plot()) ? 1 : 0);
+			}
+			LogHomelandMessage(strLogString);
+		}
 		if(pEndPlot && m_pPlayer->IsWorkerEndPlotHazard(*pEndPlot))
 		{
 			if(!pUnit->plot()->isCity() || IsCivilianSpotTaken(pUnit, pUnit->plot()))
