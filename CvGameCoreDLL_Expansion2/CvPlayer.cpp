@@ -32153,6 +32153,17 @@ bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
 			return true;
 		}
 	}
+	for(int iDX = -2; iDX <= 2; iDX++)
+	{
+		for(int iDY = -2; iDY <= 2; iDY++)
+		{
+			CvPlot* pLoopPlot = plotXYWithRangeCheck(kPlot.getX(), kPlot.getY(), iDX, iDY, 2);
+			if(pLoopPlot && !pLoopPlot->isWater() && !pLoopPlot->isMountain() && !pLoopPlot->isImpassable() && !pLoopPlot->isVisible(getTeam()))
+			{
+				return true;
+			}
+		}
+	}
 	return false;
 }
 
