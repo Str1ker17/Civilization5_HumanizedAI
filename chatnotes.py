@@ -6,7 +6,10 @@ import sys
 DEFAULT = os.path.expanduser("~/snap/steam/common/.local/share/Steam/steamapps/compatdata/8930/pfx/drive_c/users/steamuser/Documents/My Games/Sid Meier's Civilization 5/ModUserData/HumanizedAI-1.db")
 path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT
 db = sqlite3.connect(path)
-values = dict(db.execute('select Name, Value from SimpleValues'))
+db.text_factory = bytes
+values = {}
+for name, value in db.execute('select Name, Value from SimpleValues'):
+    values[name.decode('utf-8', 'replace')] = value.decode('utf-8', 'replace') if isinstance(value, bytes) else value
 
 
 def lines(prefix, count_key):
