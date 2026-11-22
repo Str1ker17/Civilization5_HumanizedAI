@@ -3792,6 +3792,15 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 	if(pThisArmy->GetArmyAIState() == ARMYAISTATE_WAITING_FOR_UNITS_TO_REINFORCE ||
 	        pThisArmy->GetArmyAIState() == ARMYAISTATE_WAITING_FOR_UNITS_TO_CATCH_UP)
 	{
+		if(!pCivilian->plot()->isFriendlyCity(*pCivilian, false) && !m_pPlayer->IsSafeCivilianEndPlot(*pCivilian->plot()))
+		{
+			m_CurrentMoveUnits.clear();
+			CvTacticalUnit unit;
+			unit.SetID(pCivilian->GetID());
+			m_CurrentMoveUnits.push_back(unit);
+			ExecuteMovesToSafestPlot();
+		}
+
 		pEscort = m_pPlayer->getUnit(pThisArmy->GetNextUnitID());
 		if(!pEscort || pEscort->TurnProcessed())
 		{
@@ -3938,8 +3947,8 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 					// See if escort can move to the same location in one turn
 					if(TurnsToReachTarget(pEscort, pCivilianMove) <= 1)
 					{
-						ExecuteMoveToPlot(pCivilian, pCivilianMove, bSaveMoves);
 						ExecuteMoveToPlot(pEscort, pCivilianMove);
+						ExecuteMoveToPlot(pCivilian, pEscort->plot(), bSaveMoves && pEscort->plot() == pCivilianMove);
 						if(GC.getLogging() && GC.getAILogging())
 						{
 							CvString strLogString;
@@ -3976,14 +3985,14 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 							}
 							else
 							{
-								pEscortMove = pCivilian->GetPathEndTurnPlot();
+								pEscortMove = pEscort->GetPathEndTurnPlot();
 								bSaveMoves = (pEscortMove == pOperation->GetTargetPlot());
 
 								// See if civilian can move to the same location in one turn
 								if(TurnsToReachTarget(pCivilian, pEscortMove) <= 1)
 								{
 									ExecuteMoveToPlot(pEscort, pEscortMove);
-									ExecuteMoveToPlot(pCivilian, pEscortMove, bSaveMoves);
+									ExecuteMoveToPlot(pCivilian, pEscort->plot(), bSaveMoves && pEscort->plot() == pEscortMove);
 									if(GC.getLogging() && GC.getAILogging())
 									{
 										CvString strLogString;
@@ -4018,7 +4027,7 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 							if(ExecuteMoveOfBlockingUnit(pBlockingUnit))
 							{
 								ExecuteMoveToPlot(pEscort, pCivilianMove);
-								ExecuteMoveToPlot(pCivilian, pCivilianMove, bSaveMoves);
+								ExecuteMoveToPlot(pCivilian, pEscort->plot(), bSaveMoves && pEscort->plot() == pCivilianMove);
 								if(GC.getLogging() && GC.getAILogging())
 								{
 									CvString strLogString;

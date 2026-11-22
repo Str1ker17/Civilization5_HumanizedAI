@@ -3276,13 +3276,20 @@ bool CvAIOperationFoundCity::ShouldAbort()
 					}
 					else
 					{
-						// we are going by our lonesome
-						m_bEscorted = false;
-						// Clear the list of units we need
-						m_viListOfUnitsWeStillNeedToBuild.clear();
-						// Send the settler directly to the target
-						pThisArmy->SetArmyAIState(ARMYAISTATE_MOVING_TO_DESTINATION);
-						m_eCurrentState = AI_OPERATION_STATE_MOVING_TO_TARGET;
+						UnitHandle pLoneSettler = (pSlot->GetUnitID() != NO_UNIT) ? GET_PLAYER(m_eOwner).getUnit(pSlot->GetUnitID()) : UnitHandle();
+						CvPlot* pLoneTarget = pLoneSettler ? FindBestTarget(pLoneSettler.pointer(), true) : NULL;
+						if(pLoneTarget != NULL)
+						{
+							// we are going by our lonesome
+							m_bEscorted = false;
+							// Clear the list of units we need
+							m_viListOfUnitsWeStillNeedToBuild.clear();
+							SetTargetPlot(pLoneTarget);
+							pThisArmy->SetGoalPlot(pLoneTarget);
+							// Send the settler directly to the target
+							pThisArmy->SetArmyAIState(ARMYAISTATE_MOVING_TO_DESTINATION);
+							m_eCurrentState = AI_OPERATION_STATE_MOVING_TO_TARGET;
+						}
 					}
 				}
 			}
