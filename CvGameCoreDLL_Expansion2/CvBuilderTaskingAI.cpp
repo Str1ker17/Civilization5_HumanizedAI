@@ -2258,6 +2258,11 @@ int CvBuilderTaskingAI::ScorePlot()
 	{
 		iScore *= 8;
 	}
+
+	if(!m_pPlayer->isHuman() && m_pTargetPlot->isBeingWorked())
+	{
+		iScore *= 3;
+	}
 	else if (pCity->IsOriginalCapital()) // this was a particularly good city and needs a little emphasis
 	{
 		iScore *= 2;

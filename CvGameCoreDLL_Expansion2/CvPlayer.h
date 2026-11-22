@@ -1825,6 +1825,7 @@ public:
 	void RecallExplorersForDefense();
 	void NoteWorkerGuardShortage();
 	int GetWorkerGuardShortage() const;
+	int GetWorkedUnimprovedBacklog() const;
 	bool IsNearRecentEnemySighting(const CvPlot& kPlot, int iRange, int iTurns) const;
 	bool IsCivilianHazard(const CvPlot& kPlot) const;
 	bool IsWorkerEndPlotHazard(CvPlot& kPlot) const;
@@ -2616,6 +2617,8 @@ protected:
 	std::vector<int> m_aiEnemySightingTurns;
 	int m_iWorkerGuardShortage;
 	int m_iWorkerGuardShortageTurn;
+	mutable int m_iBacklogCacheTurn;
+	mutable int m_iBacklogCache;
 	FAutoVariable<int, CvPlayer> m_iNumPolicies;
 	FAutoVariable<int, CvPlayer> m_iNumGreatPeople;
 	FAutoVariable<int, CvPlayer> m_iCityConnectionHappiness;

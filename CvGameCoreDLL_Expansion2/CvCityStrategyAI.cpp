@@ -876,7 +876,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 		buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eUnitForArmy, 0);
 		iTempWeight = GC.getAI_CITYSTRATEGY_ARMY_UNIT_BASE_WEIGHT();
 		int iOffenseFlavor = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_OFFENSE"));
-		int iBonusMultiplier = max(1,GC.getGame().getHandicapInfo().GetID() - 5); // more at the higher difficulties
+		int iBonusMultiplier = max(1,GC.getGame().GetAIBehaviorHandicapID() - 5); // more at the higher difficulties
 		iTempWeight += (GC.getAI_CITYSTRATEGY_OPERATION_UNIT_FLAVOR_MULTIPLIER() * iOffenseFlavor * iBonusMultiplier);
 		// add in the weight of this unit as if I were deciding to build it without having a reason
 		iTempWeight += m_pUnitProductionAI->GetWeight(eUnitForArmy);
@@ -2195,11 +2195,14 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_NeedTileImprovers(AICityStrategyT
 	else
 	{
 		int iNumCities = max(1, (iCurrentNumCities * 3) / 4);
-		if(iNumWorkers >= iNumCities)
+		bool bBacklog = !kPlayer.isHuman() && kPlayer.GetWorkedUnimprovedBacklog() > 2 * iNumWorkers + 1;
+		if(iNumWorkers >= iNumCities && !bBacklog)
 			return false;
 		// If we're losing at war, return false
 		if(kPlayer.GetDiplomacyAI()->GetStateAllWars() == STATE_ALL_WARS_LOSING)
 			return false;
+		if(bBacklog)
+			return true;
 	}
 
 	// If we're under attack from Barbs and have 1 or fewer Cities and no credible defense then training more Workers will only hurt us
@@ -2778,7 +2781,7 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_IsPuppet(CvCity* pCity)
 /// "Medium City" City Strategy: If a City is 5 or above and we are playing at a high difficulty level
 bool CityStrategyAIHelpers::IsTestCityStrategy_MediumCityHighDifficulty(CvCity* pCity)
 {
-	if(pCity->getPopulation() >= 5 && GC.getGame().getHandicapInfo().GetID() > 4)
+	if(pCity->getPopulation() >= 5 && GC.getGame().GetAIBehaviorHandicapID() > 4)
 	{
 		return true;
 	}
