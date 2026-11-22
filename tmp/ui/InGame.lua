@@ -1376,3 +1376,6 @@ for addin in Modding.GetActivatedModEntryPoints("InGameUIAddin") do
 	
 	table.insert(g_uiAddins, ContextPtr:LoadNewContext(path));
 end
+
+include( "HumanizedAutoplay" );
+HumanizedAutoplayInGame();

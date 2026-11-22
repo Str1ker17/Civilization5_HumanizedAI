@@ -465,3 +465,5 @@ else
 	
 end
 
+include( "HumanizedAutoplay" );
+HumanizedAutoplayFrontEnd();
