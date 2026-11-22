@@ -32163,7 +32163,7 @@ bool CvPlayer::IsUnsafeForCivilians(CvPlot& kPlot) const
 }
 
 //	--------------------------------------------------------------------------------
-bool CvPlayer::IsPlotReachableByVisibleEnemy(const CvPlot& kPlot, int iTurns) const
+bool CvPlayer::IsPlotReachableByVisibleEnemy(const CvPlot& kPlot) const
 {
 	CvTwoLayerPathFinder& kPathFinder = GC.getPathFinder();
 	for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
@@ -32182,7 +32182,7 @@ bool CvPlayer::IsPlotReachableByVisibleEnemy(const CvPlot& kPlot, int iTurns) co
 				continue;
 			}
 			int iDistance = plotDistance(pEnemy->getX(), pEnemy->getY(), kPlot.getX(), kPlot.getY());
-			if(iDistance > pEnemy->baseMoves() * iTurns)
+			if(iDistance > pEnemy->baseMoves())
 			{
 				continue;
 			}
@@ -32194,12 +32194,12 @@ bool CvPlayer::IsPlotReachableByVisibleEnemy(const CvPlot& kPlot, int iTurns) co
 			{
 				return true;
 			}
-			int iPathTurns = kPathFinder.GetLastNode()->m_iData2;
+			int iTurns = kPathFinder.GetLastNode()->m_iData2;
 			if(pEnemy->movesLeft() < pEnemy->maxMoves())
 			{
-				iPathTurns--;
+				iTurns--;
 			}
-			if(iPathTurns <= iTurns)
+			if(iTurns <= 1)
 			{
 				return true;
 			}
