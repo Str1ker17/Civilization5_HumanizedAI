@@ -1088,6 +1088,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 				}
 			}
 			UnitTypes eOpening = NO_UNIT;
+			BuildingTypes eMonument = NO_BUILDING;
 			if(iLandCombatUnits < 2)
 			{
 				eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
@@ -1096,13 +1097,35 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 					eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
 				}
 			}
-			else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_WORKER, true) == 0)
+			else
 			{
-				eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_WORKER);
+				BuildingClassTypes eMonumentClass = (BuildingClassTypes)GC.getInfoTypeForString("BUILDINGCLASS_MONUMENT");
+				if(eMonumentClass != NO_BUILDINGCLASS)
+				{
+					eMonument = (BuildingTypes)kPlayer.getCivilizationInfo().getCivilizationBuildings(eMonumentClass);
+					if(eMonument != NO_BUILDING && (m_pCity->GetCityBuildings()->GetNumBuilding(eMonument) > 0 || !m_pCity->canConstruct(eMonument)))
+					{
+						eMonument = NO_BUILDING;
+					}
+				}
+				if(eMonument == NO_BUILDING)
+				{
+					if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_WORKER, true) == 0)
+					{
+						eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_WORKER);
+					}
+					else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_SETTLE, true) == 0)
+					{
+						eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_SETTLE);
+					}
+				}
 			}
-			else if(kPlayer.GetNumUnitsWithUnitAI(UNITAI_SETTLE, true) == 0)
+			if(eMonument != NO_BUILDING)
 			{
-				eOpening = m_pUnitProductionAI->RecommendUnit(UNITAI_SETTLE);
+				buildable.m_eBuildableType = CITY_BUILDABLE_BUILDING;
+				buildable.m_iIndex = eMonument;
+				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eMonument, 0);
+				m_Buildables.push_back(buildable, 100000);
 			}
 			if(eOpening != NO_UNIT && eOpening != eIgnoreUnit)
 			{
