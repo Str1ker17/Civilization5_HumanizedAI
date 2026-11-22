@@ -721,6 +721,8 @@ void CvHomelandAI::AssignHomelandMoves()
 {
 	FStaticVector< CvHomelandMove, 64, true, c_eCiv5GameplayDLL >::iterator it;
 
+	PlotWorkerCoverMoves();
+
 	// Proceed in priority order
 	for(it = m_MovePriorityList.begin(); it != m_MovePriorityList.end() && !m_CurrentTurnUnits.empty(); ++it)
 	{
@@ -755,7 +757,6 @@ void CvHomelandAI::AssignHomelandMoves()
 			PlotSentryMoves();
 			break;
 		case AI_HOMELAND_MOVE_WORKER:
-			PlotWorkerCoverMoves();
 			PlotWorkerMoves();
 			PlotWorkerGuardMoves();
 			break;

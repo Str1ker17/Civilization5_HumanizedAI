@@ -32059,28 +32059,16 @@ bool CvPlayer::IsCivilianHazard(const CvPlot& kPlot) const
 }
 
 //	--------------------------------------------------------------------------------
-bool CvPlayer::IsEnemyNear(const CvPlot& kPlot, int iRange) const
+bool CvPlayer::HasStayingDefender(const CvPlot& kPlot) const
 {
-	if(IsNearRecentEnemySighting(kPlot, iRange, 3))
+	const IDInfo* pUnitNode = kPlot.headUnitNode();
+	while(pUnitNode != NULL)
 	{
-		return true;
-	}
-	for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
-	{
-		CvPlayer& kOther = GET_PLAYER((PlayerTypes)iPlayerLoop);
-		if(iPlayerLoop == GetID() || !kOther.isAlive() || !GET_TEAM(getTeam()).isAtWar(kOther.getTeam()))
+		const CvUnit* pLoopUnit = ::getUnit(*pUnitNode);
+		pUnitNode = kPlot.nextUnitNode(pUnitNode);
+		if(pLoopUnit && pLoopUnit->getOwner() == GetID() && pLoopUnit->IsCanDefend() && (pLoopUnit->isWaiting() || !pLoopUnit->canMove()))
 		{
-			continue;
-		}
-		int iLoop;
-		for(CvUnit* pEnemy = kOther.firstUnit(&iLoop); pEnemy != NULL; pEnemy = kOther.nextUnit(&iLoop))
-		{
-			CvPlot* pEnemyPlot = pEnemy->plot();
-			if(pEnemyPlot && pEnemy->IsCombatUnit() && pEnemy->getDomainType() == DOMAIN_LAND && pEnemyPlot->isVisible(getTeam()) && !pEnemy->isInvisible(getTeam(), false) &&
-				plotDistance(pEnemy->getX(), pEnemy->getY(), kPlot.getX(), kPlot.getY()) <= iRange)
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 	return false;
@@ -32089,7 +32077,7 @@ bool CvPlayer::IsEnemyNear(const CvPlot& kPlot, int iRange) const
 //	--------------------------------------------------------------------------------
 bool CvPlayer::IsWorkerCoverWanted(CvPlot& kPlot) const
 {
-	if(kPlot.isCity() || kPlot.getNumDefenders(GetID()) > 0)
+	if(kPlot.isCity() || HasStayingDefender(kPlot))
 	{
 		return false;
 	}
@@ -32099,7 +32087,7 @@ bool CvPlayer::IsWorkerCoverWanted(CvPlot& kPlot) const
 //	--------------------------------------------------------------------------------
 bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
 {
-	if(kPlot.isCity() || kPlot.getNumDefenders(GetID()) > 0)
+	if(kPlot.isCity() || HasStayingDefender(kPlot))
 	{
 		return false;
 	}
@@ -32110,19 +32098,6 @@ bool CvPlayer::IsWorkerEndPlotHazard(CvPlot& kPlot) const
 	if(GetPlotDanger(kPlot) > 0 && IsPlotReachableByVisibleEnemy(kPlot))
 	{
 		return true;
-	}
-	if(IsEnemyNear(kPlot, 4))
-	{
-		int iCityDistance = MAX_INT;
-		int iCityLoop;
-		for(const CvCity* pLoopCity = firstCity(&iCityLoop); pLoopCity != NULL; pLoopCity = nextCity(&iCityLoop))
-		{
-			iCityDistance = min(iCityDistance, plotDistance(pLoopCity->getX(), pLoopCity->getY(), kPlot.getX(), kPlot.getY()));
-		}
-		if(iCityDistance > 2)
-		{
-			return true;
-		}
 	}
 	int iTurn = GC.getGame().getGameTurn();
 	for(uint i = 0; i < m_aiEnemySightingPlots.size(); i++)
