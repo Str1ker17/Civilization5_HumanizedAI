@@ -244,6 +244,7 @@ bool IsTestCityStrategy_SmallCity(CvCity* pCity);
 bool IsTestCityStrategy_MediumCity(CvCity* pCity);
 bool IsTestCityStrategy_LargeCity(CvCity* pCity);
 bool IsTestCityStrategy_Landlocked(CvCity* pCity);
+bool IsHomeDefenseShort(CvPlayer& kPlayer);
 bool IsTestCityStrategy_NeedTileImprovers(AICityStrategyTypes eStrategy, CvCity* pCity);
 bool IsTestCityStrategy_WantTileImprovers(AICityStrategyTypes eStrategy, CvCity* pCity);
 bool IsTestCityStrategy_EnoughTileImprovers(AICityStrategyTypes eStrategy, CvCity* pCity);

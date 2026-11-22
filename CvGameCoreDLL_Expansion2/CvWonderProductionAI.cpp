@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "HumanizedAI.h"
 #include "CvGameCoreDLLUtil.h"
 #include "CvWonderProductionAI.h"
 #include "CvGameCoreUtils.h"
@@ -335,8 +336,7 @@ BuildingTypes CvWonderProductionAI::ChooseWonder(bool bUseAsyncRandom, bool bAdj
 
 		if(m_Buildables.GetTotalWeight() > 0)
 		{
-			int iNumChoices = GC.getGame().getHandicapInfo().GetCityProductionNumOptions();
-			eSelection = (BuildingTypes)m_Buildables.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing wonder from Top Choices");
+			eSelection = (BuildingTypes)HumanizedAIChoose(*m_pPlayer, m_Buildables, &fcn, "wonder");
 			iWonderWeight = m_Buildables.GetTotalWeight();
 			return eSelection;
 		}

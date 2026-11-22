@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "HumanizedAI.h"
 #include "CvGameCoreDLLUtil.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
@@ -5147,9 +5148,8 @@ BeliefTypes CvReligionAI::ChoosePantheonBelief()
 
 	// Choose from weighted vector
 	beliefChoices.SortItems();
-	int iNumChoices = MIN(beliefChoices.size(),3);   // Throw out two-thirds of the choices -- this was way too loose as choices way down were being selected now only top 3
 	RandomNumberDelegate fcn = MakeDelegate(&GC.getGame(), &CvGame::getJonRandNum);
-	BeliefTypes rtnValue = beliefChoices.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing belief from Top Choices");
+	BeliefTypes rtnValue = HumanizedAIChoose(*m_pPlayer, beliefChoices, &fcn, "belief");
 	LogBeliefChoices(beliefChoices, rtnValue);
 
 	return rtnValue;
@@ -5180,9 +5180,8 @@ BeliefTypes CvReligionAI::ChooseFounderBelief()
 
 	// Choose from weighted vector
 	beliefChoices.SortItems();
-	int iNumChoices = MIN(beliefChoices.size(),3);   // this was way too loose as choices way down were being selected now only top 3
 	RandomNumberDelegate fcn = MakeDelegate(&GC.getGame(), &CvGame::getJonRandNum);
-	BeliefTypes rtnValue = beliefChoices.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing belief from Top Choices");
+	BeliefTypes rtnValue = HumanizedAIChoose(*m_pPlayer, beliefChoices, &fcn, "belief");
 	LogBeliefChoices(beliefChoices, rtnValue);
 
 	return rtnValue;
@@ -5213,9 +5212,8 @@ BeliefTypes CvReligionAI::ChooseFollowerBelief()
 
 	// Choose from weighted vector
 	beliefChoices.SortItems();
-	int iNumChoices = MIN(beliefChoices.size(),3);   // this was way too loose as choices way down were being selected now only top 3
 	RandomNumberDelegate fcn = MakeDelegate(&GC.getGame(), &CvGame::getJonRandNum);
-	BeliefTypes rtnValue = beliefChoices.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing belief from Top Choices");
+	BeliefTypes rtnValue = HumanizedAIChoose(*m_pPlayer, beliefChoices, &fcn, "belief");
 	LogBeliefChoices(beliefChoices, rtnValue);
 
 	return rtnValue;
@@ -5246,9 +5244,8 @@ BeliefTypes CvReligionAI::ChooseEnhancerBelief()
 
 	// Choose from weighted vector
 	beliefChoices.SortItems();
-	int iNumChoices = MIN(beliefChoices.size(),3);   // this was way too loose as choices way down were being selected now only top 3
 	RandomNumberDelegate fcn = MakeDelegate(&GC.getGame(), &CvGame::getJonRandNum);
-	BeliefTypes rtnValue = beliefChoices.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing belief from Top Choices");
+	BeliefTypes rtnValue = HumanizedAIChoose(*m_pPlayer, beliefChoices, &fcn, "belief");
 	LogBeliefChoices(beliefChoices, rtnValue);
 
 	return rtnValue;
@@ -5282,9 +5279,8 @@ BeliefTypes CvReligionAI::ChooseBonusBelief(int iExcludeBelief1, int iExcludeBel
 
 	// Choose from weighted vector
 	beliefChoices.SortItems();
-	int iNumChoices = MIN(beliefChoices.size(),3);   // this was way too loose as choices way down were being selected now only top 3
 	RandomNumberDelegate fcn = MakeDelegate(&GC.getGame(), &CvGame::getJonRandNum);
-	BeliefTypes rtnValue = beliefChoices.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing belief from Top Choices");
+	BeliefTypes rtnValue = HumanizedAIChoose(*m_pPlayer, beliefChoices, &fcn, "belief");
 	LogBeliefChoices(beliefChoices, rtnValue);
 
 	return rtnValue;
@@ -5315,9 +5311,8 @@ BeliefTypes CvReligionAI::ChooseReformationBelief()
 
 	// Choose from weighted vector
 	beliefChoices.SortItems();
-	int iNumChoices = MIN(beliefChoices.size(),3);   // this was way too loose as choices way down were being selected now only top 3
 	RandomNumberDelegate fcn = MakeDelegate(&GC.getGame(), &CvGame::getJonRandNum);
-	BeliefTypes rtnValue = beliefChoices.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing belief from Top Choices");
+	BeliefTypes rtnValue = HumanizedAIChoose(*m_pPlayer, beliefChoices, &fcn, "belief");
 	LogBeliefChoices(beliefChoices, rtnValue);
 
 	return rtnValue;

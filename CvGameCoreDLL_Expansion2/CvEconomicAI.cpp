@@ -1281,6 +1281,7 @@ void CvEconomicAI::LogMonitor(void)
 
 	// civ name
 	AppendToLog(strHeader, strLog, "Civ Name", strPlayerName);
+	AppendToLog(strHeader, strLog, "Player", (int)m_pPlayer->GetID());
 
 	// turn
 	AppendToLog(strHeader, strLog, "Turn", GC.getGame().getGameTurn());
@@ -3049,20 +3050,11 @@ bool EconomicAIHelpers::IsTestStrategy_TechLeader(CvPlayer* pPlayer)
 }
 
 /// "Early Expansion" Player Strategy: An early Strategy simply designed to get player up to 3 Cities quickly.
-bool EconomicAIHelpers::IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer)
+int EconomicAIHelpers::GetDesiredCityCount(CvPlayer* pPlayer)
 {
 	int iDesiredCities;
 	int iFlavorExpansion = 0;
 	int iFlavorGrowth = 0;
-
-#ifdef NQM_AI_GIMP_NO_BUILDING_SETTLERS
-	if ((pPlayer->isHuman() && GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE)) || (!pPlayer->isHuman() && GC.getGame().isOption("GAMEOPTION_AI_TWEAKS")))
-#else
-	if(GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE) && pPlayer->isHuman())
-#endif
-	{
-		return false;
-	}
 
 	iDesiredCities = pPlayer->GetEconomicAI()->GetEarlyCityNumberTarget();
 	for(int iFlavorLoop = 0; iFlavorLoop < GC.getNumFlavorTypes() && (iFlavorExpansion == 0 || iFlavorGrowth == 0); iFlavorLoop++)
@@ -3084,6 +3076,21 @@ bool EconomicAIHelpers::IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer)
 	// scale this based on world size
 	const int iDefaultNumTiles = 80*52;
 	iDesiredCities = (iDesiredCities * GC.getMap().numPlots()) / iDefaultNumTiles;
+	return iDesiredCities;
+}
+
+bool EconomicAIHelpers::IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer)
+{
+#ifdef NQM_AI_GIMP_NO_BUILDING_SETTLERS
+	if ((pPlayer->isHuman() && GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE)) || (!pPlayer->isHuman() && GC.getGame().isOption("GAMEOPTION_AI_TWEAKS")))
+#else
+	if(GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE) && pPlayer->isHuman())
+#endif
+	{
+		return false;
+	}
+
+	int iDesiredCities = GetDesiredCityCount(pPlayer);
 
 	// See how many unowned Tiles there are on this player's landmass
 	if(pPlayer->getCapitalCity() != NULL)
@@ -3399,12 +3406,12 @@ bool EconomicAIHelpers::IsTestStrategy_FoundCity(EconomicAIStrategyTypes /*eStra
 				else if (iRandArea == 2) // least likely
 				{
 					iArea = iSecondBestArea;
-					bWantEscort = IsAreaSafeForQuickColony(iArea, pPlayer);
+					bWantEscort = !IsAreaSafeForQuickColony(iArea, pPlayer);
 				}
 				else // this is as likely as the other options combined
 				{
 					iArea = iBestArea;
-					bWantEscort = IsAreaSafeForQuickColony(iArea, pPlayer);
+					bWantEscort = !IsAreaSafeForQuickColony(iArea, pPlayer);
 				}
 
 				if (bWantEscort)

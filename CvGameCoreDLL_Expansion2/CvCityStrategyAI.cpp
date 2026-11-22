@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "HumanizedAI.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
 #include "CvInternalGameCoreUtils.h"
@@ -613,6 +614,62 @@ static double citystrategyround(double x)
 	return (x >= 0) ? floor(x + .5) : ceil(x - .5);
 };
 
+bool CityStrategyAIHelpers::IsHomeDefenseShort(CvPlayer& kPlayer)
+{
+	if(kPlayer.isMinorCiv() || kPlayer.isBarbarian() || kPlayer.isHuman())
+	{
+		return false;
+	}
+
+	const int iEnemyRange = 4;
+	const int iHomeRange = 3;
+	int iNeeded = 0;
+	int iHave = 0;
+	int iLoop;
+	for(CvCity* pLoopCity = kPlayer.firstCity(&iLoop); pLoopCity != NULL; pLoopCity = kPlayer.nextCity(&iLoop))
+	{
+		int iCityEnemies = 0;
+		for(int iDX = -iEnemyRange; iDX <= iEnemyRange; iDX++)
+		{
+			for(int iDY = -iEnemyRange; iDY <= iEnemyRange; iDY++)
+			{
+				CvPlot* pPlot = plotXYWithRangeCheck(pLoopCity->getX(), pLoopCity->getY(), iDX, iDY, iEnemyRange);
+				if(pPlot && pPlot->isVisible(kPlayer.getTeam()) && pPlot->isVisibleEnemyUnit(kPlayer.GetID()))
+				{
+					iCityEnemies++;
+				}
+			}
+		}
+		iNeeded += min(iCityEnemies, 2);
+
+		UnitTypes eProducing = pLoopCity->getProductionUnit();
+		CvUnitEntry* pkProducing = (eProducing != NO_UNIT) ? GC.getUnitInfo(eProducing) : NULL;
+		if(pkProducing && pkProducing->GetDomainType() == DOMAIN_LAND && (pkProducing->GetCombat() > 0 || pkProducing->GetRangedCombat() > 0))
+		{
+			iHave++;
+		}
+	}
+
+	for(CvUnit* pLoopUnit = kPlayer.firstUnit(&iLoop); pLoopUnit != NULL; pLoopUnit = kPlayer.nextUnit(&iLoop))
+	{
+		if(!pLoopUnit->IsCombatUnit() || pLoopUnit->getDomainType() != DOMAIN_LAND || pLoopUnit->AI_getUnitAIType() == UNITAI_EXPLORE)
+		{
+			continue;
+		}
+		int iCityLoop;
+		for(CvCity* pLoopCity = kPlayer.firstCity(&iCityLoop); pLoopCity != NULL; pLoopCity = kPlayer.nextCity(&iCityLoop))
+		{
+			if(plotDistance(pLoopUnit->getX(), pLoopUnit->getY(), pLoopCity->getX(), pLoopCity->getY()) <= iHomeRange)
+			{
+				iHave++;
+				break;
+			}
+		}
+	}
+
+	return iHave < iNeeded;
+}
+
 /// Determines if the yield is below a sustainable amount
 bool CvCityStrategyAI::IsYieldDeficient(YieldTypes eYieldType)
 {
@@ -994,6 +1051,22 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			}
 		}
 
+		if(CityStrategyAIHelpers::IsHomeDefenseShort(kPlayer))
+		{
+			UnitTypes eDefender = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
+			if(eDefender == NO_UNIT)
+			{
+				eDefender = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
+			}
+			if(eDefender != NO_UNIT && eDefender != eIgnoreUnit)
+			{
+				buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
+				buildable.m_iIndex = eDefender;
+				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eDefender, 0);
+				m_Buildables.push_back(buildable, 100000);
+			}
+		}
+
 		// Loop through adding the available projects
 		for(iProjectLoop = 0; iProjectLoop < GC.GetGameProjects()->GetNumProjects(); iProjectLoop++)
 		{
@@ -1050,9 +1123,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 	if(m_Buildables.GetTotalWeight() > 0)
 	{
-		// Choose from the best options (currently 2)
-		int iNumChoices = GC.getGame().getHandicapInfo().GetCityProductionNumOptions();
-		selection = m_Buildables.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing city build from Top Choices");
+		selection = HumanizedAIChoose(GET_PLAYER(m_pCity->getOwner()), m_Buildables, &fcn, "production");
 		int iRushIfMoreThanXTurns = GC.getAI_ATTEMPT_RUSH_OVER_X_TURNS_TO_BUILD();
 		if(GET_PLAYER(m_pCity->getOwner()).isMinorCiv())
 		{
@@ -2510,8 +2581,23 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_CapitalNeedSettler(AICityStrategy
 			int iNumCities = kPlayer.getNumCities();
 			int iSettlersOnMapOrBuild = kPlayer.GetNumUnitsWithUnitAI(UNITAI_SETTLE, true);
 			int iCitiesPlusSettlers = iNumCities + iSettlersOnMapOrBuild;
+			int iDesiredCities = max(3, EconomicAIHelpers::GetDesiredCityCount(&kPlayer));
 
-			if((iCitiesPlusSettlers) < 3)
+			if(iCitiesPlusSettlers >= 3)
+			{
+				int iNewCityUnhappiness = GC.getUNHAPPINESS_PER_CITY() + 1;
+				if(kPlayer.GetExcessHappiness() < iNewCityUnhappiness * (iSettlersOnMapOrBuild + 1))
+				{
+					return false;
+				}
+				int iBestArea, iSecondBestArea;
+				if(kPlayer.GetBestSettleAreas(kPlayer.GetEconomicAI()->GetMinimumSettleFertility(), iBestArea, iSecondBestArea) == 0)
+				{
+					return false;
+				}
+			}
+
+			if(iCitiesPlusSettlers < iDesiredCities)
 			{
 
 				AICityStrategyTypes eUnderThreat = (AICityStrategyTypes) GC.getInfoTypeForString("AICITYSTRATEGY_CAPITAL_UNDER_THREAT");
@@ -2537,7 +2623,7 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_CapitalNeedSettler(AICityStrategy
 				int iGameTurn = GC.getGame().getGameTurn();
 				if((iCitiesPlusSettlers == 1 && (iGameTurn * 4) > iWeightThreshold) ||
 					(iCitiesPlusSettlers == 2 && (iGameTurn * 2) > iWeightThreshold) || 
-					(iCitiesPlusSettlers == 3 && iGameTurn > iWeightThreshold) )
+					(iCitiesPlusSettlers >= 3 && iGameTurn > iWeightThreshold) )
 				{
 					return true;
 				}

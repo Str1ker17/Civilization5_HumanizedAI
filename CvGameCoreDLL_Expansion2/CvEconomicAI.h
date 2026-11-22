@@ -292,6 +292,7 @@ bool IsTestStrategy_EnoughRecon(CvPlayer* pPlayer);
 bool IsTestStrategy_ReallyNeedReconSea(CvPlayer* pPlayer);
 bool IsTestStrategy_NeedReconSea(CvPlayer* pPlayer);
 bool IsTestStrategy_EnoughReconSea(CvPlayer* pPlayer);
+int GetDesiredCityCount(CvPlayer* pPlayer);
 bool IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer);
 bool IsTestStrategy_EnoughExpansion(EconomicAIStrategyTypes eStrategy, CvPlayer* pPlayer);
 bool IsTestStrategy_NeedHappiness(EconomicAIStrategyTypes eStrategy, CvPlayer* pPlayer);

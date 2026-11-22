@@ -76,6 +76,7 @@ protected:
 	static int lGetNumWorldWonders(lua_State* L);
 	static int lChangeNumWorldWonders(lua_State* L);
 	static int lGetNumWondersBeatenTo(lua_State* L);
+	static int lSetMistakeHandicap(lua_State* L);
 	static int lSetNumWondersBeatenTo(lua_State* L);
 
 	static int lIsCapitalConnectedToCity(lua_State* L);

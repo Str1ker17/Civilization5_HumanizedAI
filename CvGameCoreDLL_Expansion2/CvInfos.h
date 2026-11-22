@@ -837,6 +837,9 @@ public:
 	int GetCityProductionNumOptions() const;
 	int GetTechNumOptions() const;
 	int GetPolicyNumOptions() const;
+	int GetMistakePercent() const;
+	int GetMistakeMaxRank() const;
+	int GetMisjudgePercent() const;
 	int getInflationPercent() const;
 	int getFreeCulturePerTurn() const;
 	int getAttitudeChange() const;
@@ -907,6 +910,9 @@ protected:
 	int m_iCityProductionNumOptions;
 	int m_iTechNumOptions;
 	int m_iPolicyNumOptions;
+	int m_iMistakePercent;
+	int m_iMistakeMaxRank;
+	int m_iMisjudgePercent;
 	int m_iInflationPercent;
 	int m_iFreeCulturePerTurn;
 	int m_iAttitudeChange;

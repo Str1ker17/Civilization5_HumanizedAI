@@ -238,7 +238,7 @@ int CvUnitMovement::MovementCostNoZOC(const CvUnit* pUnit, const CvPlot* pFromPl
 //	---------------------------------------------------------------------------
 bool CvUnitMovement::ConsumesAllMoves(const CvUnit* pUnit, const CvPlot* pFromPlot, const CvPlot* pToPlot)
 {
-	if(!pToPlot->isRevealed(pUnit->getTeam()) && pUnit->isHuman())
+	if(!pToPlot->isRevealed(pUnit->getTeam()))
 	{
 		return true;
 	}

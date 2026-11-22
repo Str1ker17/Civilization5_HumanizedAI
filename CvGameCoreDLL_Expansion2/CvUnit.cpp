@@ -1750,6 +1750,10 @@ bool CvUnit::getCaptureDefinition(CvUnitCaptureDefinition* pkCaptureDef, PlayerT
 		if(pkPlot)
 		{
 			CvPlayerAI& kCapturingPlayer = GET_PLAYER(kCaptureDef.eCapturingPlayer);
+			if(kCaptureDef.eOldPlayer != NO_PLAYER)
+			{
+				GET_PLAYER(kCaptureDef.eOldPlayer).AddCivilianLoss(*pkPlot);
+			}
 			if(kCapturingPlayer.isHuman() || kCapturingPlayer.AI_captureUnit(kCaptureDef.eCaptureUnitType, pkPlot) || 0 == GC.getAI_CAN_DISBAND_UNITS())
 			{
 				pkCapturedUnit = kCapturingPlayer.initUnit(kCaptureDef.eCaptureUnitType, kCaptureDef.iX, kCaptureDef.iY);
@@ -1897,7 +1901,7 @@ void CvUnit::doTurn()
 	}
 
 #ifdef PROMOTION_INSTA_HEAL_LOCKED
-	if(isPromotionReady() && GET_PLAYER(getOwner()).isHuman())
+	if(isPromotionReady())
 	{
 		setInstaHealLocked(true);
 	}
@@ -2400,23 +2404,7 @@ bool CvUnit::canEnterTerritory(TeamTypes eTeam, bool bIgnoreRightOfPassage, bool
 				return false;
 			}
 
-			// The remaining checks are only for AI major vs. AI Minor, humans can always enter a minor's territory.
-			if (isHuman())
-				return true;
-
-			CvMinorCivAI* pMinorAI = GET_PLAYER(kTheirTeam.getLeaderID()).GetMinorCivAI();
-
-			// Is this an excluded unit that doesn't cause anger?
-			bool bAngerFreeUnit = IsAngerFreeUnit();
-			// Player can earn Open Borders with enough Friendship
-			bool bHasOpenBorders = pMinorAI->IsPlayerHasOpenBorders(getOwner());
-			// If already intruding on this minor, okay to do it some more
-			bool bIntruding = pMinorAI->IsMajorIntruding(getOwner());
-
-			if (bAngerFreeUnit || bHasOpenBorders || bIntruding)
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 
@@ -2950,7 +2938,7 @@ bool CvUnit::canMoveInto(const CvPlot& plot, byte bMoveFlags) const
 			}
 #endif
 
-			if(!isHuman() || (plot.isVisible(getTeam())))
+			if(plot.isVisible(getTeam()))
 			{
 				// This stuff to the next if statement is to get units to advance into a tile with an enemy if that enemy is dying...
 				bool bCanAdvanceOnDeadUnit = false;
@@ -3050,7 +3038,7 @@ bool CvUnit::canMoveInto(const CvPlot& plot, byte bMoveFlags) const
 			}
 
 #ifdef AUI_UNIT_FIX_RADAR
-			if (!isHuman() || plot.isVisible(getTeam()) || bEmbarkedAndAdjacent)
+			if (plot.isVisible(getTeam()) || bEmbarkedAndAdjacent)
 			{
 				if (plot.isEnemyCity(*this))
 				{
@@ -3107,7 +3095,7 @@ bool CvUnit::canMoveInto(const CvPlot& plot, byte bMoveFlags) const
 #endif
 		}
 
-		ePlotTeam = ((isHuman()) ? plot.getRevealedTeam(getTeam()) : plot.getTeam());
+		ePlotTeam = plot.getRevealedTeam(getTeam());
 
 		if(!canEnterTerritory(ePlotTeam, false /*bIgnoreRightOfPassage*/, plot.isCity(), bMoveFlags & MOVEFLAG_DECLARE_WAR))
 		{

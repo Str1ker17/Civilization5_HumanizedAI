@@ -4032,7 +4032,7 @@ void CvCity::addProductionExperience(CvUnit* pUnit, bool bConscript)
 	{
 		pUnit->changeExperience(getProductionExperience(pUnit->getUnitType()) / ((bConscript) ? 2 : 1));
 #ifdef PROMOTION_INSTA_HEAL_LOCKED
-		if(pUnit->getExperience() > 0 && GET_PLAYER(pUnit->getOwner()).isHuman())
+		if(pUnit->getExperience() > 0)
 		{
 			pUnit->setInstaHealLocked(true);
 		}
@@ -16447,12 +16447,9 @@ void CvCity::doDecay()
 			{
 				m_pCityBuildings->ChangeBuildingProductionTime(((BuildingTypes)iI), 1);
 
-				if(isHuman())
+				if(m_pCityBuildings->GetBuildingProductionTime((BuildingTypes)iI) > iBuildingProductionDecayTime)
 				{
-					if(m_pCityBuildings->GetBuildingProductionTime((BuildingTypes)iI) > iBuildingProductionDecayTime)
-					{
-						m_pCityBuildings->SetBuildingProduction(((BuildingTypes)iI), ((m_pCityBuildings->GetBuildingProduction((BuildingTypes)iI) * iBuildingProductionDecayPercent) / 100));
-					}
+					m_pCityBuildings->SetBuildingProduction(((BuildingTypes)iI), ((m_pCityBuildings->GetBuildingProduction((BuildingTypes)iI) * iBuildingProductionDecayPercent) / 100));
 				}
 			}
 			else
@@ -16478,12 +16475,9 @@ void CvCity::doDecay()
 				{
 					changeUnitProductionTime(eUnit, 1);
 
-					if(isHuman())
+					if(getUnitProductionTime(eUnit) > iUnitProductionDecayTime)
 					{
-						if(getUnitProductionTime(eUnit) > iUnitProductionDecayTime)
-						{
-							setUnitProduction(eUnit, ((getUnitProduction(eUnit) * iUnitProductionDecayPercent) / 100));
-						}
+						setUnitProduction(eUnit, ((getUnitProduction(eUnit) * iUnitProductionDecayPercent) / 100));
 					}
 				}
 				else

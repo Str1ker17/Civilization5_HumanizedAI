@@ -1590,6 +1590,9 @@ void CvPlayer::uninit()
 	m_iOriginalCapitalX = -1;
 	m_iOriginalCapitalY = -1;
 	m_iNumWonders = 0;
+	m_eMistakeHandicap = NO_HANDICAP;
+	m_aiCivilianLossPlots.clear();
+	m_aiCivilianLossTurns.clear();
 	m_iNumPolicies = 0;
 	m_iNumGreatPeople = 0;
 	m_iHolyCityID = -1;
@@ -8807,7 +8810,7 @@ void CvPlayer::found(int iX, int iY)
 #endif
 #ifdef CREATE_APOLLO_PROGRAM_WITH_CAP_FOUND
 	ProjectTypes eApolloProgram = (ProjectTypes)GC.getInfoTypeForString("PROJECT_APOLLO_PROGRAM", true);
-	if (isHuman() && eApolloProgram != NO_PROJECT)
+	if (eApolloProgram != NO_PROJECT)
 	{
 		if (GET_TEAM(getTeam()).getProjectCount(eApolloProgram) < 1)
 		{
@@ -29127,7 +29130,7 @@ void CvPlayer::Read(FDataStream& kStream)
 #endif
 #ifdef SEPARATE_MERCHANTS
 # ifdef SAVE_BACKWARDS_COMPATIBILITY
-	if (uiVersion >= BUMP_SAVE_VERSION_PLAYER)
+	if (uiVersion >= 1018)
 	{
 # endif
 		kStream >> m_iGreatMerchantsCreated;
@@ -29887,6 +29890,18 @@ void CvPlayer::Read(FDataStream& kStream)
 
 	kStream >> m_strEmbarkedGraphicOverride;
 	m_kPlayerAchievements.Read(kStream);
+	if (uiVersion >= 1019)
+	{
+		int iNumLosses = 0;
+		kStream >> iNumLosses;
+		m_aiCivilianLossPlots.resize(iNumLosses);
+		m_aiCivilianLossTurns.resize(iNumLosses);
+		for(int i = 0; i < iNumLosses; i++)
+		{
+			kStream >> m_aiCivilianLossPlots[i];
+			kStream >> m_aiCivilianLossTurns[i];
+		}
+	}
 
 	if(GetID() < MAX_MAJOR_CIVS)
 	{
@@ -30676,6 +30691,12 @@ void CvPlayer::Write(FDataStream& kStream) const
 	kStream << m_strEmbarkedGraphicOverride;
 
 	m_kPlayerAchievements.Write(kStream);
+	kStream << (int)m_aiCivilianLossPlots.size();
+	for(uint i = 0; i < m_aiCivilianLossPlots.size(); i++)
+	{
+		kStream << m_aiCivilianLossPlots[i];
+		kStream << m_aiCivilianLossTurns[i];
+	}
 }
 
 //	--------------------------------------------------------------------------------
@@ -31698,6 +31719,8 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 	TeamTypes eTeam = pUnit->getTeam();
 
 	int iBestFoundValue = 0;
+	int iBestTrueValue = 0;
+	int iChosenTrueValue = 0;
 	CvPlot* pBestFoundPlot = NULL;
 
 	int iEvalDistance = /*12*/ GC.getSETTLER_EVALUATION_DISTANCE();
@@ -31765,7 +31788,7 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 		}
 
 		// Do we have to check if this is a safe place to go?
-		if(bEscorted || (!pPlot->isVisibleEnemyUnit(eOwner)))
+		if(bEscorted || IsSafeSettlePlot(*pPlot))
 		{
 			int iValue = pPlot->getFoundValue(eOwner);
 			if(iValue > 5000)
@@ -31787,15 +31810,140 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 						iValue /= 3;
 					}
 				}
-				if(iValue > iBestFoundValue)
+				int iJudgedValue = GetMisjudgeWeight(iValue, iPlotLoop, 1);
+				if(iValue > iBestTrueValue)
 				{
-					iBestFoundValue = iValue;
+					iBestTrueValue = iValue;
+				}
+				if(iJudgedValue > iBestFoundValue)
+				{
+					iBestFoundValue = iJudgedValue;
+					iChosenTrueValue = iValue;
 					pBestFoundPlot = pPlot;
 				}
 			}
 		}
 	}
+	if(pBestFoundPlot)
+	{
+		LogMistakeChoice("settle", (iChosenTrueValue < iBestTrueValue) ? 1 : 0, 0, iBestTrueValue, iChosenTrueValue);
+	}
 	return pBestFoundPlot;
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsSafeSettlePlot(CvPlot& kPlot) const
+{
+	if(kPlot.isVisibleEnemyUnit(GetID()) || GetPlotDanger(kPlot) > 0 || IsNearRecentCivilianLoss(kPlot, 3))
+		return false;
+	ImprovementTypes eCamp = (ImprovementTypes)GC.getBARBARIAN_CAMP_IMPROVEMENT();
+	const int iRange = 2;
+	for(int iDX = -iRange; iDX <= iRange; iDX++)
+	{
+		for(int iDY = -iRange; iDY <= iRange; iDY++)
+		{
+			CvPlot* pLoopPlot = plotXYWithRangeCheck(kPlot.getX(), kPlot.getY(), iDX, iDY, iRange);
+			if(pLoopPlot && pLoopPlot->getRevealedImprovementType(getTeam()) == eCamp)
+				return false;
+		}
+	}
+	return true;
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::AddCivilianLoss(const CvPlot& kPlot)
+{
+	const int iMemoryTurns = 30;
+	int iTurn = GC.getGame().getGameTurn();
+	for(int i = (int)m_aiCivilianLossPlots.size() - 1; i >= 0; i--)
+	{
+		if(iTurn - m_aiCivilianLossTurns[i] > iMemoryTurns)
+		{
+			m_aiCivilianLossPlots.erase(m_aiCivilianLossPlots.begin() + i);
+			m_aiCivilianLossTurns.erase(m_aiCivilianLossTurns.begin() + i);
+		}
+	}
+	m_aiCivilianLossPlots.push_back(kPlot.GetPlotIndex());
+	m_aiCivilianLossTurns.push_back(iTurn);
+}
+
+//	--------------------------------------------------------------------------------
+bool CvPlayer::IsNearRecentCivilianLoss(const CvPlot& kPlot, int iRange) const
+{
+	const int iMemoryTurns = 30;
+	int iTurn = GC.getGame().getGameTurn();
+	for(uint i = 0; i < m_aiCivilianLossPlots.size(); i++)
+	{
+		if(iTurn - m_aiCivilianLossTurns[i] > iMemoryTurns)
+			continue;
+		CvPlot* pLossPlot = GC.getMap().plotByIndex(m_aiCivilianLossPlots[i]);
+		if(pLossPlot && plotDistance(kPlot.getX(), kPlot.getY(), pLossPlot->getX(), pLossPlot->getY()) <= iRange)
+			return true;
+	}
+	return false;
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::SetMistakeHandicap(HandicapTypes eHandicap)
+{
+	m_eMistakeHandicap = eHandicap;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMistakePercent() const
+{
+	if(isHuman() || isMinorCiv() || isBarbarian())
+		return 0;
+	const CvHandicapInfo* pkHandicap = GC.getHandicapInfo((m_eMistakeHandicap != NO_HANDICAP) ? m_eMistakeHandicap : GC.getGame().getHandicapType());
+	return pkHandicap ? pkHandicap->GetMistakePercent() : 0;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMistakeMaxRank() const
+{
+	const CvHandicapInfo* pkHandicap = GC.getHandicapInfo((m_eMistakeHandicap != NO_HANDICAP) ? m_eMistakeHandicap : GC.getGame().getHandicapType());
+	return pkHandicap ? pkHandicap->GetMistakeMaxRank() : 1;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMisjudgePercent() const
+{
+	if(isHuman() || isMinorCiv() || isBarbarian())
+		return 0;
+	const CvHandicapInfo* pkHandicap = GC.getHandicapInfo((m_eMistakeHandicap != NO_HANDICAP) ? m_eMistakeHandicap : GC.getGame().getHandicapType());
+	return pkHandicap ? pkHandicap->GetMisjudgePercent() : 0;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMisjudgeWeight(int iWeight, int iKey1, int iKey2) const
+{
+	int iPercent = GetMisjudgePercent();
+	if(iPercent <= 0 || iWeight <= 0)
+		return iWeight;
+	unsigned int uHash = (unsigned int)GetID() * 0x9E3779B1u;
+	uHash ^= (unsigned int)iKey1 * 0x85EBCA77u;
+	uHash ^= (unsigned int)iKey2 * 0xC2B2AE3Du;
+	uHash ^= (unsigned int)(GC.getGame().getGameTurn() / 10) * 0x27D4EB2Fu;
+	uHash ^= uHash >> 15;
+	uHash *= 0x2C1B3C6Du;
+	uHash ^= uHash >> 12;
+	uHash *= 0x297A2D39u;
+	uHash ^= uHash >> 15;
+	int iNoise = (int)(uHash % (unsigned int)(2 * iPercent + 1)) - iPercent;
+	return (int)(((long long)iWeight * (100 + iNoise)) / 100);
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::LogMistakeChoice(const char* szKind, int iChosen, int iSize, int iBestWeight, int iChosenWeight) const
+{
+	if(!(GC.getLogging() && GC.getAILogging()) || isHuman() || isMinorCiv() || isBarbarian())
+		return;
+	FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedAILog.csv", FILogFile::kDontTimeStamp);
+	if(!pLog)
+		return;
+	CvString strLog;
+	strLog.Format("%03d, %d, %s, %d, %d, %d, %d, %d, %d", GC.getGame().getElapsedGameTurns(), (int)GetID(), szKind, GetMistakePercent(), GetMisjudgePercent(), iChosen, iSize, iBestWeight, iChosenWeight);
+	pLog->Msg(strLog);
 }
 
 

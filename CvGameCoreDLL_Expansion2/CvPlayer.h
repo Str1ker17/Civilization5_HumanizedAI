@@ -1819,6 +1819,16 @@ public:
 	int GetBestSettleAreas(int iMinScore, int& iFirstArea, int& iSecondArea);
 	CvPlot* GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea = -1) const;
 
+	bool IsSafeSettlePlot(CvPlot& kPlot) const;
+	void AddCivilianLoss(const CvPlot& kPlot);
+	bool IsNearRecentCivilianLoss(const CvPlot& kPlot, int iRange) const;
+	void SetMistakeHandicap(HandicapTypes eHandicap);
+	int GetMistakePercent() const;
+	int GetMistakeMaxRank() const;
+	int GetMisjudgePercent() const;
+	int GetMisjudgeWeight(int iWeight, int iKey1, int iKey2) const;
+	void LogMistakeChoice(const char* szKind, int iChosen, int iSize, int iBestWeight, int iChosenWeight) const;
+
 	// New Victory Stuff
 	int GetNumWonders() const;
 	void ChangeNumWonders(int iValue);
@@ -2589,6 +2599,9 @@ protected:
 	FAutoVariable<int, CvPlayer> m_iOriginalCapitalX;
 	FAutoVariable<int, CvPlayer> m_iOriginalCapitalY;
 	FAutoVariable<int, CvPlayer> m_iNumWonders;
+	HandicapTypes m_eMistakeHandicap;
+	std::vector<int> m_aiCivilianLossPlots;
+	std::vector<int> m_aiCivilianLossTurns;
 	FAutoVariable<int, CvPlayer> m_iNumPolicies;
 	FAutoVariable<int, CvPlayer> m_iNumGreatPeople;
 	FAutoVariable<int, CvPlayer> m_iCityConnectionHappiness;
