@@ -17389,6 +17389,18 @@ bool CvUnit::IsUnderEnemyRangedAttack() const
 					{
 						return true;
 					}
+					if(!isHuman() && !pLoopCity->IsResistance() && !pLoopCity->IsRazing() && pLoopCity->plot()->isRevealed(getTeam()))
+					{
+						int iCityRange = GC.getCITY_ATTACK_RANGE();
+#ifdef BUILDING_CITY_RANGE_MODIFIER
+						iCityRange += pLoopCity->getCityAttackRangeModifier();
+#endif
+						if(plotDistance(pLoopCity->getX(), pLoopCity->getY(), getX(), getY()) <= iCityRange &&
+						        (GC.getCAN_CITY_USE_INDIRECT_FIRE() || pLoopCity->plot()->canSeePlot(plot(), pLoopCity->getTeam(), iCityRange, NO_DIRECTION)))
+						{
+							return true;
+						}
+					}
 				}
 
 				CvUnit *pLoopUnit;
