@@ -1012,6 +1012,13 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 	// If the City is a puppet, it avoids training Units and projects
 	if(!GetCity()->IsPuppet())
 	{
+		bool bArmyTooExpensive = false;
+		if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && kPlayer.GetMilitaryAI()->GetNumberCivsAtWarWith() == 0)
+		{
+			int iRate = kPlayer.calculateGoldRate();
+			bArmyTooExpensive = iRate < 0 && kPlayer.GetTreasury()->GetGold() + 10 * iRate < 0;
+		}
+
 		// Loop through adding the available units
 		for(iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 		{
@@ -1047,6 +1054,11 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 				if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_TRADE_UNIT && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
 				{
 					iTempWeight *= 3;
+				}
+
+				if(bArmyTooExpensive && pkUnitEntry && (pkUnitEntry->GetCombat() > 0 || pkUnitEntry->GetRangedCombat() > 0) && pkUnitEntry->GetDefaultUnitAIType() != UNITAI_EXPLORE)
+				{
+					iTempWeight /= 3;
 				}
 
 				// sanity check for building ships on small inland seas (not lakes)

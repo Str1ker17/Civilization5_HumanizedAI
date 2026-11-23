@@ -486,6 +486,7 @@ void CvMilitaryAI::DoTurn()
 		MakeOffensivePurchases();
 		RequestImprovements();
 		DisbandObsoleteUnits();
+		DisbandForDeficit();
 	}
 
 	LogMilitaryStatus();
@@ -3445,6 +3446,39 @@ void CvMilitaryAI::DisbandObsoleteUnits()
 			LogScrapUnit(pNavalUnit, bInDeficit, bConquestGrandStrategy);
 		}
 	}
+}
+
+void CvMilitaryAI::DisbandForDeficit()
+{
+	if(m_pPlayer->isHuman() || m_pPlayer->isMinorCiv() || m_pPlayer->isBarbarian() || GetNumberCivsAtWarWith() > 0)
+	{
+		return;
+	}
+	int iGold = m_pPlayer->GetTreasury()->GetGold();
+	int iRate = m_pPlayer->calculateGoldRate();
+	if(iRate >= 0 || iGold + iRate >= 0 || m_iNumLandUnits <= m_iMandatoryReserveSize)
+	{
+		return;
+	}
+	int iScore = MAX_INT;
+	UnitHandle pUnit = FindBestUnitToScrap(true, true, iScore);
+	if(!pUnit || iScore == MAX_INT)
+	{
+		return;
+	}
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
+		if(pLog)
+		{
+			CvString strLog;
+			strLog.Format("%03d, %s, disband, %s, x=%d, y=%d, gold=%d, rate=%d, land=%d, reserve=%d", GC.getGame().getElapsedGameTurns(), m_pPlayer->getCivilizationShortDescription(),
+				pUnit->getUnitInfo().GetType(), pUnit->getX(), pUnit->getY(), iGold, iRate, m_iNumLandUnits, m_iMandatoryReserveSize);
+			pLog->Msg(strLog);
+		}
+	}
+	pUnit->scrap();
+	LogScrapUnit(pUnit, true, false);
 }
 
 /// Do we have the forces at hand for an attack?
