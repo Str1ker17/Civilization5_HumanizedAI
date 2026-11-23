@@ -47,6 +47,9 @@ MISTAKES=${MISTAKES:-}
 COACH=${COACH:--1}
 SAVEAS=${SAVEAS:-}
 LOAD=${LOAD:-}
+DUMP=${DUMP:-}
+DUMP_FROM=${DUMP_FROM:-0}
+DUMP_TO=${DUMP_TO:-0}
 BUILDERLOG=${BUILDERLOG:-0}
 START_TIMEOUT=${START_TIMEOUT:-600}
 TURN_TIMEOUT=${TURN_TIMEOUT:-600}
@@ -185,7 +188,8 @@ if [ "$SUPERVISE" != 1 ] || [ "$XVFB" = 1 ]; then
 fi
 db set AutoplayTurns "$TURNS" Status pending Turn -1 WorldSize "$WORLDSIZE" GameSpeed "$GAMESPEED" \
 	Handicap "$HANDICAP" MapScript "$MAPSCRIPT" Civs "$CIVS" MinorCivs "$MINORCIVS" GameOptions "$GAMEOPTIONS" Mistakes "$MISTAKES" \
-	SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0 Coach "$COACH" CoachReplay 0
+	SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0 Coach "$COACH" CoachReplay 0 \
+	Dump "$DUMP" DumpFrom "$DUMP_FROM" DumpTo "$DUMP_TO" DumpIndex "$DUMP_FROM"
 
 mkdir -p "$OUT"
 marker=$OUT/.started
@@ -196,7 +200,7 @@ marker=$OUT/.started
 	echo "civs=$CIVS"
 	echo "options=$GAMEOPTIONS"
 	echo "mistakes=$MISTAKES"
-	echo "saveas=$SAVEAS load=$LOAD"
+	echo "saveas=$SAVEAS load=$LOAD dump=$DUMP from=$DUMP_FROM to=$DUMP_TO"
 	echo "xvfb=$XVFB display=$GAME_DISPLAY env=$XVFB_ENV supervise=$SUPERVISE coach=$COACH slot=$SLOT"
 	echo "git=$(git -C "$ROOT" describe --always --dirty)"
 	echo "dll=$(md5sum "$ROOT/CvGameCoreDLL_Expansion2/BuildOutput/VS2013_ModWin32/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
@@ -240,7 +244,7 @@ while :; do
 		echo "done at turn $turn after $((now - t0))s"
 		break
 		;;
-	running)
+	running | reloading)
 		if [ "$SUPERVISE" = 1 ] && [ -z "$win" ]; then
 			echo "game window closed at turn $turn"
 			break

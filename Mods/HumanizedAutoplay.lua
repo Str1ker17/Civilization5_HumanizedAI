@@ -105,13 +105,18 @@ function HumanizedAutoplayFrontEnd()
 	end );
 end
 
+local function DumpActive()
+	return ( AutoplayGet( "Dump" ) or "" ) ~= "";
+end
+
 function HumanizedAutoplayLoadScreen()
 	if AutoplayTurns() <= 0 then
 		return;
 	end
 	Events.SequenceGameInitComplete.Add( function()
 		local coachReplay = tonumber( AutoplayGet( "CoachReplay" ) ) == 1;
-		if AutoplayGet( "Status" ) ~= "launching" and not coachReplay then
+		local status = AutoplayGet( "Status" );
+		if status ~= "launching" and status ~= "reloading" and not coachReplay then
 			return;
 		end
 		for slot, handicapType in string.gmatch( AutoplayGet( "Mistakes" ) or "", "(%d+)=([%w_]+)" ) do
@@ -123,7 +128,7 @@ function HumanizedAutoplayLoadScreen()
 			end
 		end
 		Events.LoadScreenClose();
-		if coachReplay then
+		if coachReplay or DumpActive() then
 			Game.SetPausePlayer( Game.GetActivePlayer() );
 		else
 			Game.SetPausePlayer( -1 );
@@ -290,6 +295,272 @@ local function AutoplayLandReport( turn )
 	end
 end
 
+local function DumpLog( text )
+	print( "HumanizedDump: " .. text );
+end
+
+local function DumpName( info )
+	return info and string.gsub( info.Type, "^[A-Z]+_", "" ) or "-";
+end
+
+local function DumpChunks( head, items )
+	local chunk = {};
+	local first = 1;
+	for i, item in ipairs( items ) do
+		table.insert( chunk, item );
+		if #chunk == 100 or i == #items then
+			DumpLog( string.format( "%s from=%d %s", head, first - 1, table.concat( chunk, ";" ) ) );
+			chunk = {};
+			first = i + 1;
+		end
+	end
+end
+
+local function DumpFields( t )
+	local fields = {};
+	for k, v in pairs( t ) do
+		if type( v ) == "number" or type( v ) == "boolean" then
+			table.insert( fields, k .. "=" .. tostring( v ) );
+		elseif type( v ) == "string" then
+			table.insert( fields, k .. "=" .. string.gsub( v, "[%s;=]", "_" ) );
+		end
+	end
+	table.sort( fields );
+	return table.concat( fields, "," );
+end
+
+local function DumpStatic()
+	local function legend( name, iter )
+		local t = {};
+		for row in iter do
+			table.insert( t, row.ID .. ":" .. DumpName( row ) );
+		end
+		DumpLog( "legend " .. name .. " " .. table.concat( t, "," ) );
+	end
+	legend( "terrain", GameInfo.Terrains() );
+	legend( "feature", GameInfo.Features() );
+	legend( "resource", GameInfo.Resources() );
+	legend( "improvement", GameInfo.Improvements() );
+	legend( "route", GameInfo.Routes() );
+	legend( "specialist", GameInfo.Specialists() );
+	legend( "unitclass", GameInfo.UnitClasses() );
+	local items = {};
+	for i = 0, Map.GetNumPlots() - 1 do
+		local plot = Map.GetPlotByIndex( i );
+		table.insert( items, string.format( "%d,%d,%d,%d,%d,%d,%d", plot:GetTerrainType(), plot:GetPlotType(), plot:IsRiver() and 1 or 0,
+			plot:IsLake() and 1 or 0, plot:GetResourceType( -1 ), plot:GetNumResource(), plot:GetArea() ) );
+	end
+	DumpLog( "static fields=terrain,plottype,river,lake,resource,amount,area index=y*width+x" );
+	DumpChunks( "static", items );
+	local options = {};
+	for option in GameInfo.GameOptions() do
+		table.insert( options, option.Type .. "=" .. tostring( PreGame.GetGameOption( option.Type ) ) );
+	end
+	for _, name in ipairs( { "GAMEOPTION_DUEL_STUFF", "GAMEOPTION_TOURNAMENT_MODE", "GAMEOPTION_NO_LEAGUES", "GAMEOPTION_NO_ESPIONAGE", "GAMEOPTION_AI_TWEAKS" } ) do
+		table.insert( options, name .. "=" .. tostring( PreGame.GetGameOption( name ) ) );
+	end
+	DumpLog( "options " .. table.concat( options, " " ) );
+	for i = 0, GameDefines.MAX_PLAYERS - 1 do
+		local player = Players[ i ];
+		if player and player:IsEverAlive() then
+			DumpLog( string.format( "slot id=%d civ=%s handicap=%s team=%d minor=%s", i, DumpName( GameInfo.Civilizations[ player:GetCivilizationType() ] ),
+				DumpName( GameInfo.HandicapInfos[ player:GetHandicapType() ] ), player:GetTeam(), tostring( player:IsMinorCiv() ) ) );
+		end
+	end
+end
+
+local function DumpState()
+	local turn = Game.GetGameTurn();
+	DumpLog( string.format( "state turn=%d map=%s size=%s grid=%dx%d", turn, tostring( PreGame.GetMapScript() ),
+		tostring( PreGame.GetWorldSize() ), Map.GetGridSize() ) );
+	if tonumber( AutoplayGet( "DumpIndex" ) ) == tonumber( AutoplayGet( "DumpFrom" ) ) then
+		DumpStatic();
+	end
+
+	local plotStats = {};
+	local camps = {};
+	local items = {};
+	for i = 0, Map.GetNumPlots() - 1 do
+		local plot = Map.GetPlotByIndex( i );
+		local owner = plot:GetOwner();
+		local s = plotStats[ owner ];
+		if not s then
+			s = { plots = 0, routes = 0, routesPillaged = 0, improved = 0, pillaged = 0 };
+			plotStats[ owner ] = s;
+		end
+		s.plots = s.plots + 1;
+		local route = plot:GetRouteType();
+		if route ~= -1 then
+			s.routes = s.routes + 1;
+			if plot:IsRoutePillaged() then
+				s.routesPillaged = s.routesPillaged + 1;
+			end
+		end
+		local improvement = plot:GetImprovementType();
+		if improvement ~= -1 then
+			s.improved = s.improved + 1;
+			if plot:IsImprovementPillaged() then
+				s.pillaged = s.pillaged + 1;
+			end
+			if improvement == GameInfoTypes.IMPROVEMENT_BARBARIAN_CAMP then
+				table.insert( camps, plot:GetX() .. ":" .. plot:GetY() );
+			end
+		end
+		local worked = -1;
+		if plot:IsBeingWorked() then
+			local city = plot:GetWorkingCity();
+			worked = city and city:GetID() or -2;
+		end
+		table.insert( items, string.format( "%d,%d,%d%s,%d%s,%d", owner, worked, improvement, plot:IsImprovementPillaged() and "p" or "",
+			route, plot:IsRoutePillaged() and "p" or "", plot:GetFeatureType() ) );
+	end
+	DumpLog( string.format( "mapfields turn=%d fields=owner,workedcity,improvement(p=pillaged),route(p=pillaged),feature", turn ) );
+	DumpChunks( string.format( "map turn=%d", turn ), items );
+	DumpLog( string.format( "camps turn=%d %s", turn, table.concat( camps, ";" ) ) );
+
+	local activities = {};
+	for name, value in pairs( ActivityTypes or {} ) do
+		activities[ value ] = string.gsub( name, "^ACTIVITY_", "" );
+	end
+	local majors = {};
+	for i = 0, ( GameDefines.MAX_MAJOR_CIVS or 22 ) - 1 do
+		if Players[ i ] and Players[ i ]:IsAlive() then
+			table.insert( majors, i );
+		end
+	end
+
+	for i = 0, GameDefines.MAX_PLAYERS - 1 do
+		local player = Players[ i ];
+		if player and player:IsAlive() then
+			local team = Teams[ player:GetTeam() ];
+			local s = plotStats[ i ] or { plots = 0, routes = 0, routesPillaged = 0, improved = 0, pillaged = 0 };
+			if not player:IsBarbarian() then
+				local wars = {};
+				for j = 0, GameDefines.MAX_PLAYERS - 1 do
+					local other = Players[ j ];
+					if j ~= i and other and other:IsAlive() and not other:IsBarbarian() and team:IsAtWar( other:GetTeam() ) then
+						table.insert( wars, j );
+					end
+				end
+				local research = player:GetCurrentResearch();
+				DumpLog( string.format( "player turn=%d id=%d civ=%s human=%d minor=%d cities=%d gold=%d gpt=%d conn=%.1f citygold=%.1f unitcost=%d buildmaint=%d impmaint=%d science=%d techs=%d research=%s rprog=%d rcost=%d culture=%d culturetotal=%d policies=%d nextpolicy=%d happy=%d happiness=%d unhappiness=%d might=%d units=%d plots=%d routes=%d routespill=%d improved=%d pillaged=%d faith=%d faithpt=%d pantheon=%d religion=%d ga=%d gameter=%d gathreshold=%d gp=%d gg=%d ggxp=%d score=%d tourism=%d era=%d wars=%s",
+					turn, i, DumpName( GameInfo.Civilizations[ player:GetCivilizationType() ] ), player:IsHuman() and 1 or 0, player:IsMinorCiv() and 1 or 0,
+					player:GetNumCities(), player:GetGold(), player:CalculateGoldRate(), player:GetCityConnectionGoldTimes100() / 100,
+					player:GetGoldFromCitiesMinusTradeRoutesTimes100() / 100, player:CalculateUnitCost(), player:GetBuildingGoldMaintenance(),
+					player:GetImprovementGoldMaintenance(), player:GetScience(), team:GetTeamTechs():GetNumTechsKnown(),
+					DumpName( GameInfo.Technologies[ research ] ), research ~= -1 and player:GetResearchProgress( research ) or 0,
+					research ~= -1 and player:GetResearchCost( research ) or 0, player:GetTotalJONSCulturePerTurn(), player:GetJONSCulture(),
+					player:GetNumPolicies(), player:GetNextPolicyCost(), player:GetExcessHappiness(), player:GetHappiness(), player:GetUnhappiness(),
+					player:GetMilitaryMight(), player:GetNumUnits(), s.plots, s.routes, s.routesPillaged, s.improved, s.pillaged,
+					player:GetFaith(), player:GetTotalFaithPerTurn(), player:HasCreatedPantheon() and player:GetBeliefInPantheon() or -1,
+					player:HasCreatedReligion() and player:GetReligionCreatedByPlayer() or -1, player:GetGoldenAgeTurns(), player:GetGoldenAgeProgressMeter(),
+					player:GetGoldenAgeProgressThreshold(), player:GetGreatPeopleCreated(), player:GetGreatGeneralsCreated(), player:GetCombatExperience(),
+					player:GetScore(), player:GetTourism(), player:GetCurrentEra(), table.concat( wars, "," ) ) );
+				local techs = {};
+				for tech in GameInfo.Technologies() do
+					if team:IsHasTech( tech.ID ) then
+						table.insert( techs, DumpName( tech ) );
+					end
+				end
+				DumpLog( string.format( "techs turn=%d id=%d %s", turn, i, table.concat( techs, "," ) ) );
+				local policies = {};
+				for policy in GameInfo.Policies() do
+					if player:HasPolicy( policy.ID ) then
+						table.insert( policies, DumpName( policy ) );
+					end
+				end
+				DumpLog( string.format( "policies turn=%d id=%d %s", turn, i, table.concat( policies, "," ) ) );
+				local resources = {};
+				for resource in GameInfo.Resources() do
+					local total = player:GetNumResourceTotal( resource.ID, true );
+					local available = player:GetNumResourceAvailable( resource.ID, true );
+					local used = player:GetNumResourceUsed( resource.ID );
+					if total ~= 0 or available ~= 0 or used ~= 0 then
+						table.insert( resources, string.format( "%s:%d/%d/%d", DumpName( resource ), available, used, total ) );
+					end
+				end
+				DumpLog( string.format( "resources turn=%d id=%d available/used/total %s", turn, i, table.concat( resources, "," ) ) );
+				local routesList = {};
+				local ok, list = pcall( function() return player:GetTradeRoutes(); end );
+				if ok and list then
+					for _, r in ipairs( list ) do
+						table.insert( routesList, DumpFields( r ) );
+					end
+				end
+				DumpLog( string.format( "trade turn=%d id=%d %s", turn, i, table.concat( routesList, ";" ) ) );
+				if player:IsMinorCiv() then
+					local friends = {};
+					for _, m in ipairs( majors ) do
+						table.insert( friends, m .. ":" .. player:GetMinorCivFriendshipWithMajor( m ) );
+					end
+					DumpLog( string.format( "minor turn=%d id=%d friendship=%s", turn, i, table.concat( friends, "," ) ) );
+				end
+			end
+			for city in player:Cities() do
+				local buildings = {};
+				for building in GameInfo.Buildings() do
+					if city:IsHasBuilding( building.ID ) then
+						table.insert( buildings, DumpName( building ) );
+					end
+				end
+				local specialists = {};
+				for specialist in GameInfo.Specialists() do
+					local count = city:GetSpecialistCount( specialist.ID );
+					local progress = city:GetSpecialistGreatPersonProgress( specialist.ID );
+					if count > 0 or progress > 0 then
+						table.insert( specialists, string.format( "%s:%d:%d", DumpName( specialist ), count, progress ) );
+					end
+				end
+				DumpLog( string.format( "city turn=%d owner=%d id=%d name=%s x=%d y=%d pop=%d food=%d prod=%d gold=%d sci=%d cult=%d faith=%d build=%s left=%d stored=%d needed=%d foodstored=%d foodneeded=%d growleft=%d focus=%d capital=%d connected=%d damage=%d maxhp=%d strength=%d garrison=%d puppet=%d occupied=%d razing=%d resistance=%d original=%d religion=%d works=%d borderstored=%d borderneeded=%d specialists=%s",
+					turn, i, city:GetID(), string.gsub( city:GetName(), "%s", "_" ), city:GetX(), city:GetY(), city:GetPopulation(), city:GetYieldRate( YieldTypes.YIELD_FOOD ),
+					city:GetYieldRate( YieldTypes.YIELD_PRODUCTION ), city:GetYieldRate( YieldTypes.YIELD_GOLD ), city:GetYieldRate( YieldTypes.YIELD_SCIENCE ),
+					city:GetJONSCulturePerTurn(), city:GetFaithPerTurn(),
+					string.gsub( Locale.ConvertTextKey( city:GetProductionNameKey() or "" ), "%s", "_" ), city:GetProductionTurnsLeft(),
+					city:GetProduction(), city:GetProductionNeeded(), city:GetFood(), city:GrowthThreshold(), city:GetFoodTurnsLeft(), city:GetFocusType(),
+					city:IsCapital() and 1 or 0, ( city:IsCapital() or player:IsCapitalConnectedToCity( city ) ) and 1 or 0, city:GetDamage(), city:GetMaxHitPoints(),
+					math.floor( city:GetStrengthValue() / 100 ), city:GetGarrisonedUnit() and 1 or 0, city:IsPuppet() and 1 or 0, city:IsOccupied() and 1 or 0,
+					city:IsRazing() and 1 or 0, city:IsResistance() and 1 or 0, city:GetOriginalOwner(), city:GetReligiousMajority(), city:GetNumGreatWorks(),
+					city:GetJONSCultureStored(), city:GetJONSCultureThreshold(), table.concat( specialists, "," ) ) );
+				DumpLog( string.format( "buildings turn=%d owner=%d id=%d %s", turn, i, city:GetID(), table.concat( buildings, "," ) ) );
+			end
+			for unit in player:Units() do
+				local promotions = {};
+				if unit:GetLevel() > 1 or unit:GetExperience() > 0 then
+					for promotion in GameInfo.UnitPromotions() do
+						if unit:IsHasPromotion( promotion.ID ) then
+							table.insert( promotions, DumpName( promotion ) );
+						end
+					end
+				end
+				local build = unit:GetBuildType();
+				local buildInfo = build ~= -1 and GameInfo.Builds[ build ];
+				DumpLog( string.format( "unit turn=%d owner=%d id=%d type=%s ai=%s x=%d y=%d damage=%d str=%d rstr=%d level=%d xp=%d domain=%d embarked=%d act=%s fort=%d auto=%d build=%s buildprog=%d promos=%s",
+					turn, i, unit:GetID(), DumpName( GameInfo.Units[ unit:GetUnitType() ] ), DumpName( GameInfo.UnitAIInfos[ unit:GetUnitAIType() ] ),
+					unit:GetX(), unit:GetY(), unit:GetDamage(), unit:GetBaseCombatStrength(), unit:GetBaseRangedCombatStrength(), unit:GetLevel(),
+					unit:GetExperience(), unit:GetDomainType(), unit:IsEmbarked() and 1 or 0, activities[ unit:GetActivityType() ] or tostring( unit:GetActivityType() ),
+					unit:GetFortifyTurns(), unit:IsAutomated() and 1 or 0, buildInfo and DumpName( buildInfo ) or "-",
+					buildInfo and unit:GetPlot():GetBuildProgress( build ) or 0, table.concat( promotions, "," ) ) );
+			end
+		end
+	end
+	DumpLog( string.format( "end turn=%d", turn ) );
+end
+
+local function DumpNext()
+	local index = ( tonumber( AutoplayGet( "DumpIndex" ) ) or tonumber( AutoplayGet( "DumpFrom" ) ) or 0 ) + 1;
+	local last = tonumber( AutoplayGet( "DumpTo" ) ) or 0;
+	if index > last then
+		return false;
+	end
+	local dir = string.match( AutoplayGet( "LoadFile" ) or "", "^(.*[\\/])" ) or "";
+	local path = dir .. string.format( AutoplayGet( "Dump" ), index ) .. ".Civ5Save";
+	AutoplaySet( "DumpIndex", index );
+	AutoplaySet( "Status", "reloading" );
+	DumpLog( "load " .. path );
+	Events.PlayerChoseToLoadGame( path );
+	return true;
+end
+
 function HumanizedAutoplayInGame()
 	local turns = AutoplayTurns();
 	if turns <= 0 then
@@ -319,6 +590,19 @@ function HumanizedAutoplayInGame()
 			return;
 		end
 		AutoplaySet( "Turn", turn );
+		if DumpActive() then
+			finished = true;
+			local ok, err = pcall( DumpState );
+			if not ok then
+				DumpLog( "error " .. tostring( err ) );
+			end
+			if not DumpNext() then
+				AutoplaySet( "Status", "done" );
+				AutoplayLog( "done at turn " .. turn );
+				UI.ExitGame();
+			end
+			return;
+		end
 		if turn == 25 or turn == 50 or turn == 75 or turn >= turns then
 			local ok, err = pcall( AutoplayLandReport, turn );
 			if not ok then
