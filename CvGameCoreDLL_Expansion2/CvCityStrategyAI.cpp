@@ -999,7 +999,14 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 						}
 					}
 				}
-				iTempWeight = bBestFood ? iTempWeight * 3 : 0;
+				if(!bBestFood)
+				{
+					iTempWeight = 0;
+				}
+				else if(kPlayer.GetExcessHappiness() >= GC.getUNHAPPINESS_PER_CITY() + 1)
+				{
+					iTempWeight *= 3;
+				}
 			}
 
 			// If the City is a puppet, it avoids Wonders (because the human can't change it if he wants to build it somewhere else!)
