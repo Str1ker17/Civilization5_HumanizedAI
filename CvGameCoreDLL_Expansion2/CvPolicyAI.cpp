@@ -236,6 +236,11 @@ int CvPolicyAI::ChooseNextPolicy(CvPlayer* pPlayer)
 						{
 							iBranchWeight /= 3;
 						}
+						if(!pPlayer->isHuman() && !pPlayer->isMinorCiv() && pPlayer->getNumCities() <= 4 &&
+						        ePolicyBranch == (PolicyBranchTypes)GC.getInfoTypeForString("POLICY_BRANCH_TRADITION", true))
+						{
+							iBranchWeight *= 2;
+						}
 					}
 
 					m_AdoptablePolicies.push_back(iBranchLoop, iBranchWeight);

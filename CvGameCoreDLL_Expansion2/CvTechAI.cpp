@@ -8,6 +8,7 @@
 #include "CvGameCoreDLLPCH.h"
 #include "HumanizedAI.h"
 #include "CvGameCoreDLLUtil.h"
+#include "CvInternalGameCoreUtils.h"
 #include "CvTechAI.h"
 #include "CvGameCoreUtils.h"
 #include "CvInfosSerializationHelper.h"
@@ -168,6 +169,35 @@ TechTypes CvTechAI::ChooseNextTech(CvPlayer *pPlayer, bool bFreeTech)
 			else
 			{
 				m_ResearchableTechs.push_back(iTechLoop, m_TechAIWeights.GetWeight(iTechLoop));
+			}
+		}
+	}
+
+	if(!pPlayer->isHuman() && !pPlayer->isMinorCiv() && !pPlayer->isBarbarian())
+	{
+		for(int iI = 0; iI < m_ResearchableTechs.size(); iI++)
+		{
+			TechTypes eTech = (TechTypes)m_ResearchableTechs.GetElement(iI);
+			bool bUnlocksGrowth = false;
+			for(int iBldg = 0; iBldg < GC.getNumBuildingInfos() && !bUnlocksGrowth; iBldg++)
+			{
+				CvBuildingEntry* pkBuildingInfo = GC.getBuildingInfo((BuildingTypes)iBldg);
+				if(pkBuildingInfo == NULL || pkBuildingInfo->GetPrereqAndTech() != eTech)
+				{
+					continue;
+				}
+				const CvBuildingClassInfo& kClass = pkBuildingInfo->GetBuildingClassInfo();
+				if(isWorldWonderClass(kClass) || isTeamWonderClass(kClass) || isNationalWonderClass(kClass))
+				{
+					continue;
+				}
+				bUnlocksGrowth = pkBuildingInfo->GetYieldChange(YIELD_FOOD) > 0 || pkBuildingInfo->GetYieldModifier(YIELD_FOOD) > 0 || pkBuildingInfo->GetFoodKept() > 0 ||
+					pkBuildingInfo->GetSeaPlotYieldChange(YIELD_FOOD) > 0 || pkBuildingInfo->GetYieldChange(YIELD_SCIENCE) > 0 ||
+					pkBuildingInfo->GetYieldChangePerPop(YIELD_SCIENCE) > 0 || pkBuildingInfo->GetYieldModifier(YIELD_SCIENCE) > 0;
+			}
+			if(bUnlocksGrowth)
+			{
+				m_ResearchableTechs.SetWeight(iI, m_ResearchableTechs.GetWeight(iI) * 2);
 			}
 		}
 	}
