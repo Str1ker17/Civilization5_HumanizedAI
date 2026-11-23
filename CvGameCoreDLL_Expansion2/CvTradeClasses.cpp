@@ -4577,7 +4577,7 @@ void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 		}
 	}
 	std::stable_sort(aGoldSortedTR.begin(), aGoldSortedTR.end(), SortTR());
-	uint uiNumInternationalTradesToAdd = 2;
+	uint uiNumInternationalTradesToAdd = (m_pPlayer->isHuman() || m_pPlayer->isMinorCiv()) ? 2 : 0;
 
 	// clear list
 	aTradeConnectionList.clear();
