@@ -14,6 +14,7 @@
 #include "CvArea.h"
 #include "CvPlayerAI.h"
 #include "CvTeam.h"
+#include "CvMilitaryAI.h"
 #include "CvInfos.h"
 #include "CvImprovementClasses.h"
 #include "CvAStar.h"
@@ -90,8 +91,10 @@ void CvCityAI::AI_chooseProduction(bool bInterruptWonders)
 	// See if this is the one AI city that is supposed to be building wonders
 	if(pSpecializationAI->GetWonderBuildCity() == this)
 	{
+		bool bArmyShort = !kOwner.isHuman() && kOwner.GetMilitaryAI()->GetNumberCivsAtWarWith() > 0 && kOwner.GetMilitaryAI()->GetLandReservesAvailable() < 0;
+
 		// Is it still working on that wonder and we don't want to interrupt it?
-		if(!bInterruptWonders)
+		if(!bInterruptWonders && !bArmyShort)
 		{
 			const BuildingTypes eBuilding = getProductionBuilding();
 			CvBuildingEntry* pkBuilding = (eBuilding != NO_BUILDING)? GC.getBuildingInfo(eBuilding) : NULL;
@@ -116,7 +119,7 @@ void CvCityAI::AI_chooseProduction(bool bInterruptWonders)
 			int iFlavorWonder = kOwner.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_WONDER"));
 			int iFlavorGP = kOwner.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_GREAT_PEOPLE"));
 			int iFlavor = (iFlavorWonder > iFlavorGP ) ? iFlavorWonder : iFlavorGP;
-			if (GC.getGame().getJonRandNum(11, "Random roll for whether to continue building wonders") <= iFlavor)
+			if (GC.getGame().getJonRandNum(11, "Random roll for whether to continue building wonders") <= iFlavor && !bArmyShort)
 				bBuildWonder = true;
 		}
 	}
