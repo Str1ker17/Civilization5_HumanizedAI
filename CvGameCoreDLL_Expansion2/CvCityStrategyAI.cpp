@@ -1055,11 +1055,6 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 					}
 				}
 
-				if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_TRADE_UNIT && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
-				{
-					iTempWeight *= 3;
-				}
-
 				if(bArmyTooExpensive && pkUnitEntry && (pkUnitEntry->GetCombat() > 0 || pkUnitEntry->GetRangedCombat() > 0) && pkUnitEntry->GetDefaultUnitAIType() != UNITAI_EXPLORE)
 				{
 					iTempWeight /= 3;
