@@ -1048,6 +1048,10 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 						{
 							iTempWeight = 0;
 						}
+						else if(!kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && kPlayer.getNumCities() < 5 && !kPlayer.IsEmpireUnhappy())
+						{
+							iTempWeight *= 2;
+						}
 					}
 				}
 
