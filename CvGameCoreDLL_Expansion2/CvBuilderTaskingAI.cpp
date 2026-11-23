@@ -299,6 +299,10 @@ void CvBuilderTaskingAI::ConnectCitiesToCapital(CvCity* pPlayerCapital, CvCity* 
 	if(!bMajorMinorConnection)
 	{
 		iGoldForRoute = m_pPlayer->GetTreasury()->GetCityConnectionRouteGoldTimes100(pTargetCity) / 100;
+		if(!m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv())
+		{
+			iGoldForRoute += (4 * GC.getTRADE_ROUTE_CITY_POP_GOLD_MULTIPLIER()) / 100;
+		}
 	}
 
 	CvRouteInfo* pRouteInfo = GC.getRouteInfo(eRoute);
