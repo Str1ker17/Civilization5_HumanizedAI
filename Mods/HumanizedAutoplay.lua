@@ -128,7 +128,7 @@ function HumanizedAutoplayLoadScreen()
 			end
 		end
 		Events.LoadScreenClose();
-		if coachReplay or DumpActive() then
+		if coachReplay or DumpActive() or tonumber( AutoplayGet( "View" ) ) == 1 then
 			Game.SetPausePlayer( Game.GetActivePlayer() );
 		else
 			Game.SetPausePlayer( -1 );
@@ -607,6 +607,11 @@ function HumanizedAutoplayInGame()
 			return;
 		end
 		AutoplaySet( "Turn", turn );
+		if tonumber( AutoplayGet( "View" ) ) == 1 then
+			finished = true;
+			AutoplayLog( "view mode at turn " .. turn );
+			return;
+		end
 		if DumpActive() then
 			finished = true;
 			local ok, err = pcall( DumpState );
