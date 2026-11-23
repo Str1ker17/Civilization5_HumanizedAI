@@ -543,6 +543,23 @@ local function DumpState()
 			end
 		end
 	end
+	if tonumber( AutoplayGet( "DumpIndex" ) ) == tonumber( AutoplayGet( "DumpTo" ) ) then
+		for i = 0, ( GameDefines.MAX_MAJOR_CIVS or 22 ) - 1 do
+			local player = Players[ i ];
+			if player and player:IsEverAlive() then
+				local ok, data = pcall( function() return player:GetReplayData(); end );
+				if ok and data then
+					for set, values in pairs( data ) do
+						local points = {};
+						for t, v in pairs( values ) do
+							table.insert( points, t .. ":" .. v );
+						end
+						DumpLog( string.format( "replay id=%d set=%s %s", i, tostring( set ), table.concat( points, "," ) ) );
+					end
+				end
+			end
+		end
+	end
 	DumpLog( string.format( "end turn=%d", turn ) );
 end
 
