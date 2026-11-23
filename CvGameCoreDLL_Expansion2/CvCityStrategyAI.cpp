@@ -614,6 +614,31 @@ static double citystrategyround(double x)
 	return (x >= 0) ? floor(x + .5) : ceil(x - .5);
 };
 
+static int HumanizedFoodRouteBuildingValue(const CvCity* pCity, CvBuildingEntry* pkBuildingInfo)
+{
+	CvPlayer& kOwner = GET_PLAYER(pCity->getOwner());
+	int iEach = pkBuildingInfo->GetYieldForEachBuildingInEmpire(YIELD_FOOD);
+	if(iEach > 0)
+	{
+		int iMax = pkBuildingInfo->GetMaxYieldForEachBuildingInEmpire(YIELD_FOOD);
+		return iMax > 0 ? iMax : iEach * kOwner.getNumCities();
+	}
+	int iFood = std::max(0, pkBuildingInfo->GetYieldChange(YIELD_FOOD));
+	for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+	{
+		CvPlot* pPlot = pCity->GetCityCitizens()->GetCityPlotFromIndex(iI);
+		if(pPlot && pPlot->getOwner() == pCity->getOwner())
+		{
+			ResourceTypes eResource = pPlot->getResourceType(kOwner.getTeam());
+			if(eResource != NO_RESOURCE && pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_FOOD) > 0)
+			{
+				iFood += pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_FOOD);
+			}
+		}
+	}
+	return iFood;
+}
+
 bool CityStrategyAIHelpers::IsHomeDefenseShort(CvPlayer& kPlayer)
 {
 	if(kPlayer.isMinorCiv() || kPlayer.isBarbarian() || kPlayer.isHuman())
@@ -957,6 +982,25 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 				iTempWeight = 0;
 			}
 #endif
+
+			if(iTempWeight > 0 && pkBuildingInfo->AllowsFoodTradeRoutes() && !kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
+			{
+				int iFoodValue = HumanizedFoodRouteBuildingValue(GetCity(), pkBuildingInfo);
+				bool bBestFood = true;
+				for(int iOther = 0; iOther < GC.GetGameBuildings()->GetNumBuildings(); iOther++)
+				{
+					CvBuildingEntry* pkOther = GC.getBuildingInfo((BuildingTypes)iOther);
+					if(iOther != iBldgLoop && pkOther && pkOther->AllowsFoodTradeRoutes() && m_pCity->canConstruct((BuildingTypes)iOther))
+					{
+						int iOtherValue = HumanizedFoodRouteBuildingValue(GetCity(), pkOther);
+						if(iOtherValue > iFoodValue || (iOtherValue == iFoodValue && pkOther->GetYieldForEachBuildingInEmpire(YIELD_FOOD) <= 0))
+						{
+							bBestFood = false;
+						}
+					}
+				}
+				iTempWeight = bBestFood ? iTempWeight * 3 : 0;
+			}
 
 			// If the City is a puppet, it avoids Wonders (because the human can't change it if he wants to build it somewhere else!)
 			if(GetCity()->IsPuppet())
