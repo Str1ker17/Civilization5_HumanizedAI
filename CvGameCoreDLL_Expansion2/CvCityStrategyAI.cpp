@@ -991,6 +991,19 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 					}
 				}
 			}
+			if(iTempWeight > 0 && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
+			{
+				const CvBuildingClassInfo& kGrowthClass = pkBuildingInfo->GetBuildingClassInfo();
+				if(!isWorldWonderClass(kGrowthClass) && !isTeamWonderClass(kGrowthClass) && !isNationalWonderClass(kGrowthClass))
+				{
+					bool bGrowth = pkBuildingInfo->GetYieldChange(YIELD_FOOD) > 0 || pkBuildingInfo->GetYieldModifier(YIELD_FOOD) > 0 || pkBuildingInfo->GetFoodKept() > 0 || pkBuildingInfo->GetSeaPlotYieldChange(YIELD_FOOD) > 0;
+					bool bScience = pkBuildingInfo->GetYieldChange(YIELD_SCIENCE) > 0 || pkBuildingInfo->GetYieldChangePerPop(YIELD_SCIENCE) > 0 || pkBuildingInfo->GetYieldModifier(YIELD_SCIENCE) > 0;
+					if(bGrowth || bScience)
+					{
+						iTempWeight *= 2;
+					}
+				}
+			}
 			if(iTempWeight > 0)
 				m_Buildables.push_back(buildable, iTempWeight);
 		}
