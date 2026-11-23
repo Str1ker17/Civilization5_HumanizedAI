@@ -1044,6 +1044,11 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 					}
 				}
 
+				if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_TRADE_UNIT && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
+				{
+					iTempWeight *= 3;
+				}
+
 				// sanity check for building ships on small inland seas (not lakes)
 				if (pkUnitEntry)
 				{
