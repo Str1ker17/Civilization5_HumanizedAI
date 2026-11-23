@@ -16,6 +16,7 @@
 #include "Fireworks/FVariableSystem.h"
 #include "CvImprovementClasses.h"
 #include "CvAStar.h"
+#include "CvInternalGameCoreUtils.h"
 #include "CvCitySpecializationAI.h"
 #include "CvTypes.h"
 #include "cvStopWatch.h"
@@ -818,6 +819,7 @@ void CvEconomicAI::DoTurn()
 	if(!m_pPlayer->isHuman())
 	{
 		DoHurry();
+		DoBuildingPurchases();
 		DoPlotPurchases();
 		DisbandExtraWorkers();
 		DisbandExtraArchaeologists();
@@ -1792,6 +1794,84 @@ void CvEconomicAI::DoHurry()
 		pBestHurryCity->hurry(eBestHurryType);
 		pBestHurryCity->GetCityStrategyAI()->LogHurry(eBestHurryType, iBestHurryAmount, iBestHurryAmountAvailable, iBestHurryTurnsSaved);
 	}
+}
+
+void CvEconomicAI::DoBuildingPurchases()
+{
+	if(m_pPlayer->isHuman() || m_pPlayer->isMinorCiv() || m_pPlayer->isBarbarian())
+	{
+		return;
+	}
+
+	int iGold = m_pPlayer->GetTreasury()->GetGold();
+	int iRate = m_pPlayer->calculateGoldRate();
+	int iReserve = 50 + 25 * (int)m_pPlayer->GetCurrentEra();
+	if(iRate < 0)
+	{
+		iReserve -= 10 * iRate;
+	}
+	if(iGold <= iReserve)
+	{
+		return;
+	}
+
+	CvCity* pBestCity = NULL;
+	BuildingTypes eBestBuilding = NO_BUILDING;
+	int iBestCost = 0;
+	int iBestScore = 0;
+	int iBestTurns = 0;
+	int iLoop = 0;
+	for(CvCity* pLoopCity = m_pPlayer->firstCity(&iLoop); pLoopCity != NULL; pLoopCity = m_pPlayer->nextCity(&iLoop))
+	{
+		BuildingTypes eBuilding = pLoopCity->getProductionBuilding();
+		CvBuildingEntry* pkBuildingInfo = (eBuilding != NO_BUILDING) ? GC.getBuildingInfo(eBuilding) : NULL;
+		if(pkBuildingInfo == NULL)
+		{
+			continue;
+		}
+		const CvBuildingClassInfo& kClass = pkBuildingInfo->GetBuildingClassInfo();
+		if(isWorldWonderClass(kClass) || isTeamWonderClass(kClass) || isNationalWonderClass(kClass))
+		{
+			continue;
+		}
+		int iTurnsLeft = pLoopCity->getProductionTurnsLeft();
+		if(iTurnsLeft < 3 || !pLoopCity->IsCanPurchase(true, true, NO_UNIT, eBuilding, NO_PROJECT, YIELD_GOLD))
+		{
+			continue;
+		}
+		int iCost = pLoopCity->GetPurchaseCost(eBuilding);
+		if(iCost <= 0 || iGold - iCost < iReserve)
+		{
+			continue;
+		}
+		int iScore = iTurnsLeft * 1000 / iCost;
+		if(iScore > iBestScore)
+		{
+			iBestScore = iScore;
+			pBestCity = pLoopCity;
+			eBestBuilding = eBuilding;
+			iBestCost = iCost;
+			iBestTurns = iTurnsLeft;
+		}
+	}
+
+	if(pBestCity == NULL || !CanWithdrawMoneyForPurchase(PURCHASE_TYPE_BUILDING, iBestCost, -1))
+	{
+		return;
+	}
+
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
+		if(pLog)
+		{
+			CvString strLog;
+			strLog.Format("%03d, %s, purchase, %s, %s, cost=%d, turns=%d, gold=%d, rate=%d, reserve=%d", GC.getGame().getElapsedGameTurns(), m_pPlayer->getCivilizationShortDescription(),
+				pBestCity->getName().GetCString(), GC.getBuildingInfo(eBestBuilding)->GetType(), iBestCost, iBestTurns, iGold, iRate, iReserve);
+			pLog->Msg(strLog);
+		}
+	}
+	pBestCity->Purchase(NO_UNIT, eBestBuilding, NO_PROJECT, YIELD_GOLD);
 }
 
 /// Spend money buying plots

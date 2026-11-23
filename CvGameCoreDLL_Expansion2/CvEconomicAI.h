@@ -225,6 +225,7 @@ private:
 
 	// DoTurn() sub-functions
 	void DoHurry();
+	void DoBuildingPurchases();
 	void DoPlotPurchases();
 	void DoReconState();
 	void DoAntiquitySites();
