@@ -85,6 +85,7 @@ public:
 	void AddScrubFalloutDirectives(CvUnit* pUnit, CvPlot* pPlot, int iMoveTurnsAway);
 
 	bool ShouldBuilderConsiderPlot(CvUnit* pUnit, CvPlot* pPlot);  // determines all the logistics if the builder should get to the plot
+	void SetAvoidHazard(bool bAvoid);
 	int FindTurnsAway(CvUnit* pUnit, CvPlot* pPlot);  // returns -1 if no path can be found, otherwise it returns the # of turns to get there
 
 	int GetBuildCostWeight(int iWeight, CvPlot* pPlot, BuildTypes eBuild);
@@ -126,6 +127,7 @@ protected:
 	BuildTypes m_eRepairBuild;
 	CvPlotsVector m_aiPlots;
 	bool m_bLogging;
+	bool m_bAvoidHazard;
 	int m_iNumCities;
 
 	CvPlot* m_pTargetPlot;

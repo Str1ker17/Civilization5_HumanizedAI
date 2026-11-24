@@ -2161,7 +2161,7 @@ void CvAIOperationBasicCityAttack::Write(FDataStream& kStream) const
 
 MultiunitFormationTypes CvAIOperationBasicCityAttack::GetFormation() const
 {
-	return (GC.getGame().getHandicapInfo().GetID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_BASIC_CITY_ATTACK_FORCE;
+	return MilitaryAIHelpers::GetCityAttackFormation(&GET_PLAYER(m_eOwner));
 }
 
 /// Same as default version except if just gathered forces, check to see if a better target has presented itself
@@ -2259,7 +2259,7 @@ CvAIOperationSneakCityAttack::CvAIOperationSneakCityAttack()
 }
 MultiunitFormationTypes CvAIOperationSneakCityAttack::GetFormation() const
 {
-	return (GC.getGame().getHandicapInfo().GetID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_BASIC_CITY_ATTACK_FORCE;
+	return MilitaryAIHelpers::GetCityAttackFormation(&GET_PLAYER(m_eOwner));
 }
 
 CvAIOperationQuickSneakCityAttack::CvAIOperationQuickSneakCityAttack()
@@ -2981,6 +2981,45 @@ CvAIOperationFoundCity::~CvAIOperationFoundCity()
 }
 
 
+static bool HumanizedSettleThreat(PlayerTypes eOwner, CvPlot* pTarget, CvPlot* pFrom)
+{
+	const int iRange = 5;
+	TeamTypes eTeam = GET_PLAYER(eOwner).getTeam();
+	CvPlot* apCenters[2] = {pTarget, pFrom};
+	for(int iC = 0; iC < 2; iC++)
+	{
+		CvPlot* pCenter = apCenters[iC];
+		if(pCenter == NULL)
+		{
+			continue;
+		}
+		if(GET_PLAYER(eOwner).GetPlotDanger(*pCenter) > 0)
+		{
+			return true;
+		}
+		for(int iDX = -iRange; iDX <= iRange; iDX++)
+		{
+			for(int iDY = -iRange; iDY <= iRange; iDY++)
+			{
+				CvPlot* pLoop = plotXYWithRangeCheck(pCenter->getX(), pCenter->getY(), iDX, iDY, iRange);
+				if(pLoop == NULL)
+				{
+					continue;
+				}
+				if(pLoop->getRevealedImprovementType(eTeam) == GC.getBARBARIAN_CAMP_IMPROVEMENT())
+				{
+					return true;
+				}
+				if(pLoop->isVisible(eTeam) && pLoop->isVisibleEnemyUnit(eOwner))
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEnemy*/, int iDefaultArea, CvCity* /*pTarget*/, CvCity* /*pMuster*/)
 {
 	m_iTargetArea = iDefaultArea;
@@ -3042,10 +3081,16 @@ void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEn
 				else
 				{
 					// There was no escort immediately available.  Let's look for a "safe" city site instead
-
-					if (eOwner == -1 || GET_PLAYER(eOwner).getNumCities() > 1 || GET_PLAYER(eOwner).GetDiplomacyAI()->GetBoldness() > 5) // unless we'd rather play it safe
+					pNewTarget = FindBestTarget(pOurCivilian, true);
+					if(pNewTarget != NULL && pNewTarget != pTargetSite && !GET_PLAYER(m_eOwner).isHuman() && pNewTarget->getFoundValue(m_eOwner) * 10 < pTargetSite->getFoundValue(m_eOwner) * 8 && HumanizedSettleThreat(m_eOwner, pTargetSite, pOurCivilian->plot()))
 					{
-						pNewTarget = FindBestTarget(pOurCivilian, true);
+						if(GC.getLogging() && GC.getAILogging())
+						{
+							CvString strMsg;
+							strMsg.Format("Lone site X: %d, Y: %d value %d is below 80 percent of escorted site X: %d, Y: %d value %d, waiting for an escort", pNewTarget->getX(), pNewTarget->getY(), pNewTarget->getFoundValue(m_eOwner), pTargetSite->getX(), pTargetSite->getY(), pTargetSite->getFoundValue(m_eOwner));
+							LogOperationSpecialMessage(strMsg);
+						}
+						pNewTarget = NULL;
 					}
 
 					// If no better target, we'll wait it out for an escort
@@ -3070,6 +3115,7 @@ void CvAIOperationFoundCity::Init(int iID, PlayerTypes eOwner, PlayerTypes /*eEn
 						m_viListOfUnitsWeStillNeedToBuild.clear();
 
 						// Change the muster point
+						SetTargetPlot(pNewTarget);
 						pArmyAI->SetGoalPlot(pNewTarget);
 						SetMusterPlot(pOurCivilian->plot());
 						pArmyAI->SetXY(GetMusterPlot()->getX(), GetMusterPlot()->getY());
@@ -3136,7 +3182,7 @@ bool CvAIOperationFoundCity::ArmyInPosition(CvArmyAI* pArmy)
 			if(pSettler != NULL && pEscort != NULL && pSettler->plot() == pEscort->plot())
 			{
 				// let's see if the target still makes sense (this is modified from RetargetCivilian)
-				CvPlot* pBetterTarget = FindBestTarget(pSettler, true);
+				CvPlot* pBetterTarget = FindBestTarget(pSettler, false);
 
 				// No targets at all!  Abort
 				if(pBetterTarget == NULL)
@@ -3179,12 +3225,12 @@ bool CvAIOperationFoundCity::ArmyInPosition(CvArmyAI* pArmy)
 					LogOperationSpecialMessage(strMsg);
 				}
 				RetargetCivilian(pSettler, pArmy);
-				pSettler->finishMoves();
+				pSettler->AIFinishMoves();
 				iUnitID = pArmy->GetNextUnitID();
 				if(iUnitID != -1)
 				{
 					pEscort = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-					pEscort->finishMoves();
+					pEscort->AIFinishMoves();
 				}
 			}
 			// If the settler made it, we don't care about the entire army
@@ -3219,12 +3265,12 @@ bool CvAIOperationFoundCity::ArmyInPosition(CvArmyAI* pArmy)
 					LogOperationSpecialMessage(strMsg);
 				}
 				RetargetCivilian(pSettler, pArmy);
-				pSettler->finishMoves();
+				pSettler->AIFinishMoves();
 				iUnitID = pArmy->GetNextUnitID();
 				if(iUnitID != -1)
 				{
 					pEscort = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-					pEscort->finishMoves();
+					pEscort->AIFinishMoves();
 				}
 			}
 		}
@@ -3243,11 +3289,11 @@ bool CvAIOperationFoundCity::ArmyInPosition(CvArmyAI* pArmy)
 /// Find the plot where we want to settle
 CvPlot* CvAIOperationFoundCity::FindBestTarget(CvUnit* pUnit, bool bOnlySafePaths)
 {
-	CvPlot* pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, bOnlySafePaths /*m_bEscorted*/, m_iTargetArea);
+	CvPlot* pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, !bOnlySafePaths, m_iTargetArea);
 	if (pResult == NULL)
 	{
 		m_iTargetArea = -1;
-		pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, bOnlySafePaths /*m_bEscorted*/, -1);
+		pResult = GET_PLAYER(m_eOwner).GetBestSettlePlot(pUnit, !bOnlySafePaths, -1);
 	}
 	return pResult;
 }
@@ -3279,13 +3325,20 @@ bool CvAIOperationFoundCity::ShouldAbort()
 					}
 					else
 					{
-						// we are going by our lonesome
-						m_bEscorted = false;
-						// Clear the list of units we need
-						m_viListOfUnitsWeStillNeedToBuild.clear();
-						// Send the settler directly to the target
-						pThisArmy->SetArmyAIState(ARMYAISTATE_MOVING_TO_DESTINATION);
-						m_eCurrentState = AI_OPERATION_STATE_MOVING_TO_TARGET;
+						UnitHandle pLoneSettler = (pSlot->GetUnitID() != NO_UNIT) ? GET_PLAYER(m_eOwner).getUnit(pSlot->GetUnitID()) : UnitHandle();
+						CvPlot* pLoneTarget = pLoneSettler ? FindBestTarget(pLoneSettler.pointer(), true) : NULL;
+						if(pLoneTarget != NULL)
+						{
+							// we are going by our lonesome
+							m_bEscorted = false;
+							// Clear the list of units we need
+							m_viListOfUnitsWeStillNeedToBuild.clear();
+							SetTargetPlot(pLoneTarget);
+							pThisArmy->SetGoalPlot(pLoneTarget);
+							// Send the settler directly to the target
+							pThisArmy->SetArmyAIState(ARMYAISTATE_MOVING_TO_DESTINATION);
+							m_eCurrentState = AI_OPERATION_STATE_MOVING_TO_TARGET;
+						}
 					}
 				}
 			}
@@ -3547,12 +3600,12 @@ bool CvAIOperationMerchantDelegation::ArmyInPosition(CvArmyAI* pArmy)
 						LogOperationSpecialMessage(strMsg);
 					}
 					RetargetCivilian(pMerchant, pArmy);
-					pMerchant->finishMoves();
+					pMerchant->AIFinishMoves();
 					iUnitID = pArmy->GetNextUnitID();
 					if(iUnitID != -1)
 					{
 						pEscort = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-						pEscort->finishMoves();
+						pEscort->AIFinishMoves();
 					}
 				}
 			}
@@ -3699,12 +3752,12 @@ bool CvAIOperationConcertTour::ArmyInPosition(CvArmyAI* pArmy)
 						LogOperationSpecialMessage(strMsg);
 					}
 					RetargetCivilian(pMusician, pArmy);
-					pMusician->finishMoves();
+					pMusician->AIFinishMoves();
 					iUnitID = pArmy->GetNextUnitID();
 					if(iUnitID != -1)
 					{
 						pEscort = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-						pEscort->finishMoves();
+						pEscort->AIFinishMoves();
 					}
 				}
 			}
@@ -5216,12 +5269,12 @@ bool CvAINavalEscortedOperation::ArmyInPosition(CvArmyAI* pArmy)
 					LogOperationSpecialMessage(strMsg);
 				}
 				RetargetCivilian(pSettler, pArmy);
-				pSettler->finishMoves();
+				pSettler->AIFinishMoves();
 				iUnitID = pArmy->GetNextUnitID();
 				if(iUnitID != -1)
 				{
 					pEscort = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-					pEscort->finishMoves();
+					pEscort->AIFinishMoves();
 				}
 			}
 			// If the settler made it, we don't care about the entire army
@@ -5246,12 +5299,12 @@ bool CvAINavalEscortedOperation::ArmyInPosition(CvArmyAI* pArmy)
 					LogOperationSpecialMessage(strMsg);
 				}
 				RetargetCivilian(pSettler, pArmy);
-				pSettler->finishMoves();
+				pSettler->AIFinishMoves();
 				iUnitID = pArmy->GetNextUnitID();
 				if(iUnitID != -1)
 				{
 					pEscort = GET_PLAYER(m_eOwner).getUnit(iUnitID);
-					pEscort->finishMoves();
+					pEscort->AIFinishMoves();
 				}
 			}
 		}

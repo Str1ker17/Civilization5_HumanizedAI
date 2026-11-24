@@ -8736,7 +8736,7 @@ void CvGame::updateWar()
 		for(iI = 0; iI < MAX_TEAMS; iI++)
 		{
 			CvTeam& teamI = GET_TEAM((TeamTypes)iI);
-			if(teamI.isHuman())
+			if(teamI.isHuman() || (GC.getGame().isOption("GAMEOPTION_DUEL_STUFF") && !teamI.isMinorCiv() && !teamI.isBarbarian()))
 			{
 				if(teamI.isAlive())
 				{

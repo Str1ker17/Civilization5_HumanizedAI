@@ -1750,6 +1750,10 @@ bool CvUnit::getCaptureDefinition(CvUnitCaptureDefinition* pkCaptureDef, PlayerT
 		if(pkPlot)
 		{
 			CvPlayerAI& kCapturingPlayer = GET_PLAYER(kCaptureDef.eCapturingPlayer);
+			if(kCaptureDef.eOldPlayer != NO_PLAYER)
+			{
+				GET_PLAYER(kCaptureDef.eOldPlayer).AddCivilianLoss(*pkPlot, kCaptureDef.eOldType, kCaptureDef.eCapturingPlayer);
+			}
 			if(kCapturingPlayer.isHuman() || kCapturingPlayer.AI_captureUnit(kCaptureDef.eCaptureUnitType, pkPlot) || 0 == GC.getAI_CAN_DISBAND_UNITS())
 			{
 				pkCapturedUnit = kCapturingPlayer.initUnit(kCaptureDef.eCaptureUnitType, kCaptureDef.iX, kCaptureDef.iY);
@@ -17334,6 +17338,21 @@ void CvUnit::finishMoves()
 }
 
 //	--------------------------------------------------------------------------------
+void CvUnit::AIFinishMoves()
+{
+	VALIDATE_OBJECT
+	if(IsCombatUnit() && !isHuman() && !isBarbarian() && getMoves() >= maxMoves() && !isOutOfAttacks() && GetLengthMissionQueue() == 0 && !IsBusy())
+	{
+		if(GetActivityType() == ACTIVITY_AWAKE)
+		{
+			SetActivityType(ACTIVITY_HOLD);
+		}
+		return;
+	}
+	finishMoves();
+}
+
+//	--------------------------------------------------------------------------------
 /// Is this unit capable of moving on its own?
 bool CvUnit::IsImmobile() const
 {
@@ -17369,7 +17388,7 @@ bool CvUnit::IsUnderEnemyRangedAttack() const
 	PlayerTypes eLoopPlayer;
 	int iTotalDamage = 0;
 
-	for(int iPlayerLoop = 0; iPlayerLoop < MAX_CIV_PLAYERS; iPlayerLoop++)
+	for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
 	{
 		eLoopPlayer = (PlayerTypes) iPlayerLoop;
 		CvPlayer &kPlayer = GET_PLAYER(eLoopPlayer);
@@ -17384,6 +17403,18 @@ bool CvUnit::IsUnderEnemyRangedAttack() const
 					if(pLoopCity->canRangeStrikeAt(getX(), getY()))
 					{
 						return true;
+					}
+					if(!isHuman() && !pLoopCity->IsResistance() && !pLoopCity->IsRazing() && pLoopCity->plot()->isRevealed(getTeam()))
+					{
+						int iCityRange = GC.getCITY_ATTACK_RANGE();
+#ifdef BUILDING_CITY_RANGE_MODIFIER
+						iCityRange += pLoopCity->getCityAttackRangeModifier();
+#endif
+						if(plotDistance(pLoopCity->getX(), pLoopCity->getY(), getX(), getY()) <= iCityRange &&
+						        (GC.getCAN_CITY_USE_INDIRECT_FIRE() || pLoopCity->plot()->canSeePlot(plot(), pLoopCity->getTeam(), iCityRange, NO_DIRECTION)))
+						{
+							return true;
+						}
 					}
 				}
 

@@ -52,6 +52,7 @@ public:
 	void AI_unitUpdate();
 
 	void AI_conquerCity(CvCity* pCity, PlayerTypes eOldOwner);
+	bool IsCaptureWorthKeeping(CvCity* pCity);
 	bool AI_captureUnit(UnitTypes eUnit, CvPlot* pPlot);
 
 	int AI_foundValue(int iX, int iY, int iMinRivalRange = -1, bool bStartingLoc = false);

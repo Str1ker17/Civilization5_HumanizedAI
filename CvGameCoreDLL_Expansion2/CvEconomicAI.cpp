@@ -3522,12 +3522,12 @@ bool EconomicAIHelpers::IsTestStrategy_FoundCity(EconomicAIStrategyTypes /*eStra
 				else if (iRandArea == 2) // least likely
 				{
 					iArea = iSecondBestArea;
-					bWantEscort = IsAreaSafeForQuickColony(iArea, pPlayer);
+					bWantEscort = !IsAreaSafeForQuickColony(iArea, pPlayer);
 				}
 				else // this is as likely as the other options combined
 				{
 					iArea = iBestArea;
-					bWantEscort = IsAreaSafeForQuickColony(iArea, pPlayer);
+					bWantEscort = !IsAreaSafeForQuickColony(iArea, pPlayer);
 				}
 
 				if (bWantEscort)

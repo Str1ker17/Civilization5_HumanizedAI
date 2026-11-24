@@ -244,6 +244,7 @@ void CvPlayerAI::AI_unitUpdate()
 			CvPlayer& kPlayer = GET_PLAYER((PlayerTypes)iPlayerLoop);
 			if(kPlayer.isAlive() && !kPlayer.isHuman())
 			{
+				kPlayer.LogCivilianExposure();
 				kPlayer.LogUnitStates("barb");
 			}
 		}
@@ -299,6 +300,100 @@ void CvPlayerAI::AI_unitUpdate()
 }
 
 
+/// Keep a captured city if the empire is fine with it as a puppet, or if what only this city can reach pays for its unhappiness
+bool CvPlayerAI::IsCaptureWorthKeeping(CvCity* pCity)
+{
+	std::vector<CvPlot*> aPlots;
+	for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+	{
+		CvPlot* pPlot = plotCity(pCity->getX(), pCity->getY(), iI);
+		if(pPlot == NULL || (pPlot->getOwner() != NO_PLAYER && pPlot->getOwner() != GetID()))
+		{
+			continue;
+		}
+		bool bReachable = false;
+		int iLoop;
+		for(CvCity* pLoopCity = firstCity(&iLoop); pLoopCity != NULL; pLoopCity = nextCity(&iLoop))
+		{
+			if(pLoopCity != pCity && plotDistance(pLoopCity->getX(), pLoopCity->getY(), pPlot->getX(), pPlot->getY()) <= 3)
+			{
+				bReachable = true;
+				break;
+			}
+		}
+		if(!bReachable)
+		{
+			aPlots.push_back(pPlot);
+		}
+	}
+
+	int iValue = 0;
+	int iNotYetCounted = 0;
+	int iLuxuries = 0;
+	int iWonders = 0;
+	int iStrategic = 0;
+	std::vector<ResourceTypes> aSeen;
+	for(std::vector<CvPlot*>::iterator it = aPlots.begin(); it != aPlots.end(); ++it)
+	{
+		if((*it)->IsNaturalWonder())
+		{
+			iValue += 4;
+			iWonders++;
+		}
+		ResourceTypes eResource = (*it)->getResourceType(getTeam());
+		if(eResource == NO_RESOURCE || std::find(aSeen.begin(), aSeen.end(), eResource) != aSeen.end())
+		{
+			continue;
+		}
+		ResourceUsageTypes eUsage = GC.getResourceInfo(eResource)->getResourceUsage();
+		if(eUsage != RESOURCEUSAGE_LUXURY && eUsage != RESOURCEUSAGE_STRATEGIC)
+		{
+			continue;
+		}
+		aSeen.push_back(eResource);
+		int iConnectedHere = 0;
+		for(std::vector<CvPlot*>::iterator jt = aPlots.begin(); jt != aPlots.end(); ++jt)
+		{
+			ImprovementTypes eImprovement = (*jt)->getImprovementType();
+			if((*jt)->getOwner() == GetID() && (*jt)->getResourceType(getTeam()) == eResource && ((*jt)->isCity() || (eImprovement != NO_IMPROVEMENT && !(*jt)->IsImprovementPillaged() && GC.getImprovementInfo(eImprovement)->IsImprovementResourceTrade(eResource))))
+			{
+				iConnectedHere += (*jt)->getNumResource();
+			}
+		}
+		if(getNumResourceTotal(eResource, true) - iConnectedHere > 0)
+		{
+			continue;
+		}
+		if(eUsage == RESOURCEUSAGE_LUXURY)
+		{
+			int iHappiness = GetHappinessFromLuxury(eResource);
+			iValue += iHappiness;
+			iLuxuries++;
+			if(iConnectedHere <= 0)
+			{
+				iNotYetCounted += iHappiness;
+			}
+		}
+		else
+		{
+			iValue += 4;
+			iStrategic++;
+		}
+	}
+
+	int iExcessIfPuppet = GetHappiness() - GetUnhappiness(NULL, pCity) + iNotYetCounted;
+	int iCityCost = GC.getUNHAPPINESS_PER_CITY() + pCity->getPopulation() * GC.getUNHAPPINESS_PER_POPULATION();
+	bool bKeep = iExcessIfPuppet >= 0 || iValue + 2 >= iCityCost;
+
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		CvString strLogString;
+		strLogString.Format("Captured %s: excess now %d, if puppet %d, new luxuries %d, natural wonders %d, new strategic %d, value %d, city cost %d, %s", pCity->getName().GetCString(), GetExcessHappiness(), iExcessIfPuppet, iLuxuries, iWonders, iStrategic, iValue, iCityCost, bKeep ? "keep" : "raze");
+		GetHomelandAI()->LogHomelandMessage(strLogString);
+	}
+	return bKeep;
+}
+
 void CvPlayerAI::AI_conquerCity(CvCity* pCity, PlayerTypes eOldOwner)
 {
 	PlayerTypes eOriginalOwner = pCity->getOriginalOwner();
@@ -351,7 +446,7 @@ void CvPlayerAI::AI_conquerCity(CvCity* pCity, PlayerTypes eOldOwner)
 	{
 		// Burn the city if the empire is unhappy - keeping the city will only make things worse or if map hint dictates
 		// Huns will burn down everything possible once they have a core of a few cities (was 3, but this put Attila out of the running long term as a conqueror)
-		if (IsEmpireUnhappy() || (GC.getMap().GetAIMapHint() & 2) || (GetPlayerTraits()->GetRazeSpeedModifier() > 0 && getNumCities() >= 3 + (GC.getGame().getGameTurn() / 100)) )
+		if ((IsEmpireUnhappy() && !IsCaptureWorthKeeping(pCity)) || (GC.getMap().GetAIMapHint() & 2) || (GetPlayerTraits()->GetRazeSpeedModifier() > 0 && getNumCities() >= 3 + (GC.getGame().getGameTurn() / 100)) )
 		{
 			pCity->doTask(TASK_RAZE);
 			return;

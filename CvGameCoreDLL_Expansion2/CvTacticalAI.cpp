@@ -2656,7 +2656,7 @@ void CvTacticalAI::PlotPlunderTradePlotMoves (DomainTypes eDomain)
 		if (pClosestPlot)
 		{
 			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pClosestPlot->getX(), pClosestPlot->getY());
-			pUnit->finishMoves();
+			pUnit->AIFinishMoves();
 			
 			// Delete this unit from those we have to move
 			UnitProcessed(m_CurrentMoveUnits[ui].GetID());
@@ -3792,6 +3792,15 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 	if(pThisArmy->GetArmyAIState() == ARMYAISTATE_WAITING_FOR_UNITS_TO_REINFORCE ||
 	        pThisArmy->GetArmyAIState() == ARMYAISTATE_WAITING_FOR_UNITS_TO_CATCH_UP)
 	{
+		if(!pCivilian->plot()->isFriendlyCity(*pCivilian, false) && !m_pPlayer->IsSafeCivilianEndPlot(*pCivilian->plot()))
+		{
+			m_CurrentMoveUnits.clear();
+			CvTacticalUnit unit;
+			unit.SetID(pCivilian->GetID());
+			m_CurrentMoveUnits.push_back(unit);
+			ExecuteMovesToSafestPlot();
+		}
+
 		pEscort = m_pPlayer->getUnit(pThisArmy->GetNextUnitID());
 		if(!pEscort || pEscort->TurnProcessed())
 		{
@@ -3860,8 +3869,8 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 
 			// Didn't find an alternative, must abort operation
 			pOperation->RetargetCivilian(pCivilian.pointer(), pThisArmy);
-			pCivilian->finishMoves();
-			pEscort->finishMoves();
+			pCivilian->AIFinishMoves();
+			pEscort->AIFinishMoves();
 			if(GC.getLogging() && GC.getAILogging())
 			{
 				CvString strTemp;
@@ -3889,11 +3898,22 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 			if(!pCivilian->GeneratePath(pOperation->GetTargetPlot(), iFlags, false /*bReuse*/))
 			{
 				pOperation->RetargetCivilian(pCivilian.pointer(), pThisArmy);
-				pCivilian->finishMoves();
+				if(pThisArmy->GetNumSlotsFilled() == 1 && m_pPlayer->GetPlotDanger(*(pCivilian->plot())) > 0)
+				{
+					m_CurrentMoveUnits.clear();
+					CvTacticalUnit unit;
+					unit.SetID(pCivilian->GetID());
+					m_CurrentMoveUnits.push_back(unit);
+					ExecuteMovesToSafestPlot();
+				}
+				else
+				{
+					pCivilian->AIFinishMoves();
+				}
 				pEscort = m_pPlayer->getUnit(pThisArmy->GetNextUnitID());
 				if(pEscort)
 				{
-					pEscort->finishMoves();
+					pEscort->AIFinishMoves();
 				}
 				if(GC.getLogging() && GC.getAILogging())
 				{
@@ -3927,8 +3947,8 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 					// See if escort can move to the same location in one turn
 					if(TurnsToReachTarget(pEscort, pCivilianMove) <= 1)
 					{
-						ExecuteMoveToPlot(pCivilian, pCivilianMove, bSaveMoves);
 						ExecuteMoveToPlot(pEscort, pCivilianMove);
+						ExecuteMoveToPlot(pCivilian, pEscort->plot(), bSaveMoves && pEscort->plot() == pCivilianMove);
 						if(GC.getLogging() && GC.getAILogging())
 						{
 							CvString strLogString;
@@ -3954,8 +3974,8 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 							if(!pEscort->GeneratePath(pOperation->GetTargetPlot(), 0, false /*bReuse*/))
 							{
 								pOperation->RetargetCivilian(pCivilian.pointer(), pThisArmy);
-								pCivilian->finishMoves();
-								pEscort->finishMoves();
+								pCivilian->AIFinishMoves();
+								pEscort->AIFinishMoves();
 								if(GC.getLogging() && GC.getAILogging())
 								{
 									CvString strLogString;
@@ -3965,14 +3985,14 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 							}
 							else
 							{
-								pEscortMove = pCivilian->GetPathEndTurnPlot();
+								pEscortMove = pEscort->GetPathEndTurnPlot();
 								bSaveMoves = (pEscortMove == pOperation->GetTargetPlot());
 
 								// See if civilian can move to the same location in one turn
 								if(TurnsToReachTarget(pCivilian, pEscortMove) <= 1)
 								{
 									ExecuteMoveToPlot(pEscort, pEscortMove);
-									ExecuteMoveToPlot(pCivilian, pEscortMove, bSaveMoves);
+									ExecuteMoveToPlot(pCivilian, pEscort->plot(), bSaveMoves && pEscort->plot() == pEscortMove);
 									if(GC.getLogging() && GC.getAILogging())
 									{
 										CvString strLogString;
@@ -3989,8 +4009,8 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 								{
 									// Didn't find an alternative, retarget operation
 									pOperation->RetargetCivilian(pCivilian.pointer(), pThisArmy);
-									pCivilian->finishMoves();
-									pEscort->finishMoves();
+									pCivilian->AIFinishMoves();
+									pEscort->AIFinishMoves();
 									if(GC.getLogging() && GC.getAILogging())
 									{
 										CvString strLogString;
@@ -4007,7 +4027,7 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 							if(ExecuteMoveOfBlockingUnit(pBlockingUnit))
 							{
 								ExecuteMoveToPlot(pEscort, pCivilianMove);
-								ExecuteMoveToPlot(pCivilian, pCivilianMove, bSaveMoves);
+								ExecuteMoveToPlot(pCivilian, pEscort->plot(), bSaveMoves && pEscort->plot() == pCivilianMove);
 								if(GC.getLogging() && GC.getAILogging())
 								{
 									CvString strLogString;
@@ -4025,8 +4045,8 @@ void CvTacticalAI::PlotSingleHexOperationMoves(CvAIEscortedOperation* pOperation
 
 								// Didn't find an alternative, try retargeting operation
 								pOperation->RetargetCivilian(pCivilian.pointer(), pThisArmy);
-								pCivilian->finishMoves();
-								pEscort->finishMoves();
+								pCivilian->AIFinishMoves();
+								pEscort->AIFinishMoves();
 								if(GC.getLogging() && GC.getAILogging())
 								{
 									CvString strLogString;
@@ -4425,7 +4445,7 @@ void CvTacticalAI::PlotNavalEscortOperationMoves(CvAINavalEscortedOperation* pOp
 						UnitHandle pUnit = m_pPlayer->getUnit(pSlot->GetUnitID());
 						if(pUnit)
 						{
-							pUnit->finishMoves();
+							pUnit->AIFinishMoves();
 						}
 					}
 				}
@@ -4481,7 +4501,7 @@ void CvTacticalAI::PlotNavalEscortOperationMoves(CvAINavalEscortedOperation* pOp
 							UnitHandle pUnit = m_pPlayer->getUnit(pSlot->GetUnitID());
 							if(pUnit)
 							{
-								pUnit->finishMoves();
+								pUnit->AIFinishMoves();
 							}
 						}
 					}
@@ -4522,7 +4542,7 @@ void CvTacticalAI::PlotNavalEscortOperationMoves(CvAINavalEscortedOperation* pOp
 					UnitHandle pUnit = m_pPlayer->getUnit(pSlot->GetUnitID());
 					if (pUnit) 
 					{
-						pUnit->finishMoves();
+						pUnit->AIFinishMoves();
 					}
 				}
 			}
@@ -4582,7 +4602,7 @@ void CvTacticalAI::PlotNavalEscortOperationMoves(CvAINavalEscortedOperation* pOp
 						UnitHandle pUnit = m_pPlayer->getUnit(pSlot->GetUnitID());
 						if (pUnit) 
 						{
-							pUnit->finishMoves();
+							pUnit->AIFinishMoves();
 						}
 					}
 				}
@@ -4966,7 +4986,7 @@ void CvTacticalAI::ExecuteFormationMoves(CvArmyAI* pArmy, CvPlot *pClosestCurren
 					UnitHandle pInnerUnit = m_pPlayer->getUnit(m_CurrentMoveUnits[0].GetID());
 					bool bMoveWasSafe;
 					MoveToUsingSafeEmbark(pInnerUnit, pLoopPlot, bMoveWasSafe);
-					pInnerUnit->finishMoves();
+					pInnerUnit->AIFinishMoves();
 					if(GC.getLogging() && GC.getAILogging())
 					{
 						CvString strMsg;
@@ -5011,7 +5031,7 @@ void CvTacticalAI::ExecuteFormationMoves(CvArmyAI* pArmy, CvPlot *pClosestCurren
 						UnitHandle pInnerUnit = m_pPlayer->getUnit(m_CurrentMoveUnits[0].GetID());
 						bool bMoveWasSafe;
 						MoveToUsingSafeEmbark(pInnerUnit, pLoopPlot, bMoveWasSafe);
-						pInnerUnit->finishMoves();
+						pInnerUnit->AIFinishMoves();
 						if(GC.getLogging() && GC.getAILogging())
 						{
 							CvString strMsg;
@@ -5043,7 +5063,7 @@ void CvTacticalAI::ExecuteFormationMoves(CvArmyAI* pArmy, CvPlot *pClosestCurren
 					UnitHandle pInnerUnit = m_pPlayer->getUnit(m_CurrentMoveUnits[0].GetID());
 					bool bMoveWasSafe;
 					MoveToUsingSafeEmbark(pInnerUnit, pLoopPlot, bMoveWasSafe);
-					pInnerUnit->finishMoves();
+					pInnerUnit->AIFinishMoves();
 					if(GC.getLogging() && GC.getAILogging())
 					{
 						CvString strMsg;
@@ -5936,7 +5956,7 @@ void CvTacticalAI::ExecuteBarbarianCampMove(CvPlot* pTargetPlot)
 	if(pUnit)
 	{
 		pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTargetPlot->getX(), pTargetPlot->getY());
-		pUnit->finishMoves();
+		pUnit->AIFinishMoves();
 
 		// Delete this unit from those we have to move
 		UnitProcessed(m_CurrentMoveUnits[0].GetID());
@@ -5951,7 +5971,7 @@ void CvTacticalAI::ExecuteCivilianCapture(CvPlot* pTargetPlot)
 	if(pUnit)
 	{
 		pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTargetPlot->getX(), pTargetPlot->getY());
-		pUnit->finishMoves();
+		pUnit->AIFinishMoves();
 
 		// Delete this unit from those we have to move
 		UnitProcessed(m_CurrentMoveUnits[0].GetID());
@@ -5969,7 +5989,7 @@ void CvTacticalAI::ExecutePillage(CvPlot* pTargetPlot)
 	{
 		pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTargetPlot->getX(), pTargetPlot->getY());
 		pUnit->PushMission(CvTypes::getMISSION_PILLAGE());
-		pUnit->finishMoves();
+		pUnit->AIFinishMoves();
 
 		// Delete this unit from those we have to move
 		UnitProcessed(m_CurrentMoveUnits[0].GetID());
@@ -5985,7 +6005,7 @@ void CvTacticalAI::ExecutePlunderTradeUnit(CvPlot* pTargetPlot)
 	{
 		pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTargetPlot->getX(), pTargetPlot->getY());
 		pUnit->PushMission(CvTypes::getMISSION_PLUNDER_TRADE_ROUTE());
-		pUnit->finishMoves();
+		pUnit->AIFinishMoves();
 
 		// Delete this unit from those we have to move
 		UnitProcessed(m_CurrentMoveUnits[0].GetID());
@@ -6005,7 +6025,7 @@ void CvTacticalAI::ExecuteParadropPillage(CvPlot* pTargetPlot)
 		pUnit->PushMission(CvTypes::getMISSION_PARADROP(), pTargetPlot->getX(), pTargetPlot->getY());
 #endif
 		pUnit->PushMission(CvTypes::getMISSION_PILLAGE());
-		pUnit->finishMoves();
+		pUnit->AIFinishMoves();
 
 		// Delete this unit from those we have to move
 		UnitProcessed(m_CurrentMoveUnits[0].GetID());
@@ -6159,6 +6179,18 @@ void CvTacticalAI::ExecuteAttack(CvTacticalTarget* pTarget, CvPlot* pTargetPlot,
 			{
 				if(pUnit->getMoves() > 0 && (!bMustSurviveAttack || ((m_CurrentMoveUnits[iI].GetExpectedSelfDamage() + pUnit->getDamage()) < pUnit->GetMaxHitPoints())))
 				{
+					if(!pUnit->IsCanAttackRanged() && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && !pTargetPlot->isCity() &&
+						iDamageRemaining > m_CurrentMoveUnits[iI].GetExpectedTargetDamage() &&
+						(pUnit->GetCurrHitPoints() - m_CurrentMoveUnits[iI].GetExpectedSelfDamage()) * 2 < pUnit->GetMaxHitPoints())
+					{
+						if(GC.getLogging() && GC.getAILogging())
+						{
+							CvString strMsg;
+							strMsg.Format("Not attacking with unit. Would be left too weak next to enemy, %s, X: %d, Y: %d", pUnit->getName().GetCString(), pUnit->getX(), pUnit->getY());
+							LogTacticalMessage(strMsg);
+						}
+						continue;
+					}
 					// Are we a melee unit
 					if(!pUnit->IsCanAttackRanged())
 					{
@@ -6275,7 +6307,7 @@ void CvTacticalAI::ExecuteRepositionMoves()
 				{
 					if(MoveToEmptySpaceNearTarget(pUnit, pBestPlot, (pUnit->getDomainType()==DOMAIN_LAND)))
 					{
-						pUnit->finishMoves();
+						pUnit->AIFinishMoves();
 						UnitProcessed(m_CurrentMoveUnits[iI].GetID(), pUnit->IsCombatUnit());
 						if(GC.getLogging() && GC.getAILogging())
 						{
@@ -6339,7 +6371,15 @@ void CvTacticalAI::ExecuteMovesToSafestPlot()
 	for(unsigned int iI = 0; iI < m_CurrentMoveUnits.size(); iI++)
 	{
 		UnitHandle pUnit = m_pPlayer->getUnit(m_CurrentMoveUnits[iI].GetID());
-		if(pUnit)
+		if(pUnit && !pUnit->IsCombatUnit() && !m_pPlayer->isBarbarian())
+		{
+			if(m_pPlayer->GetHomelandAI()->MoveCivilianToSafety(pUnit.pointer(), false))
+			{
+				pUnit->AIFinishMoves();
+				UnitProcessed(pUnit->GetID(), false);
+			}
+		}
+		else if(pUnit)
 		{
 #if defined(PATH_PLAN_LAST)
 			aCityList.clear();
@@ -6521,11 +6561,29 @@ void CvTacticalAI::ExecuteMovesToSafestPlot()
 						pBestPlot = GetReachablePlot(pUnit, aDangerList, 1);
 #endif
 
+			if(pUnit->IsCombatUnit() && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && (pBestPlot == NULL || pBestPlot == pUnit->plot()))
+			{
+				CvPlot* pRetreat = m_pPlayer->GetHomelandAI()->GetCombatRetreatPlot(pUnit.pointer());
+				if(pRetreat != NULL)
+				{
+					pBestPlot = pRetreat;
+				}
+				else
+				{
+					if(!m_pPlayer->GetHomelandAI()->TryBreakoutAttack(pUnit.pointer()))
+					{
+						m_pPlayer->GetHomelandAI()->HoldCombatUnitInPlace(pUnit.pointer());
+					}
+					UnitProcessed(pUnit->GetID(), true);
+					continue;
+				}
+			}
+
 			if(pBestPlot != NULL)
 			{
 				// Move to the lowest danger value found
 				pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pBestPlot->getX(), pBestPlot->getY(), MOVE_UNITS_IGNORE_DANGER);
-				pUnit->finishMoves();
+				pUnit->AIFinishMoves();
 				UnitProcessed(pUnit->GetID(), pUnit->IsCombatUnit());
 
 				if(GC.getLogging() && GC.getAILogging())
@@ -6606,7 +6664,7 @@ void CvTacticalAI::ExecuteBarbarianMoves(bool bAggressive)
 
 					if(pBestPlot && MoveToEmptySpaceNearTarget(pUnit, pBestPlot))
 					{
-						pUnit->finishMoves();
+						pUnit->AIFinishMoves();
 						UnitProcessed(m_CurrentMoveUnits[iI].GetID());
 						if(GC.getLogging() && GC.getAILogging())
 						{
@@ -6618,7 +6676,7 @@ void CvTacticalAI::ExecuteBarbarianMoves(bool bAggressive)
 					}
 					else
 					{
-						pUnit->finishMoves();
+						pUnit->AIFinishMoves();
 						UnitProcessed(m_CurrentMoveUnits[iI].GetID());
 						if(GC.getLogging() && GC.getAILogging())
 						{
@@ -6662,7 +6720,7 @@ void CvTacticalAI::ExecuteBarbarianMoves(bool bAggressive)
 					{
 						pUnit->SetTacticalAIPlot(pBestPlot);
 						pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pBestPlot->getX(), pBestPlot->getY());
-						pUnit->finishMoves();
+						pUnit->AIFinishMoves();
 						UnitProcessed(m_CurrentMoveUnits[iI].GetID());
 
 						if(GC.getLogging() && GC.getAILogging())
@@ -6676,7 +6734,7 @@ void CvTacticalAI::ExecuteBarbarianMoves(bool bAggressive)
 					else
 					{
 						pUnit->SetTacticalAIPlot(NULL);
-						pUnit->finishMoves();
+						pUnit->AIFinishMoves();
 						UnitProcessed(m_CurrentMoveUnits[iI].GetID());
 
 						if(GC.getLogging() && GC.getAILogging())
@@ -6715,7 +6773,7 @@ void CvTacticalAI::ExecuteBarbarianCivilianEscortMove()
 				pCurrent = pCivilian->plot();
 				if(pCurrent == pTarget)
 				{
-					pCivilian->finishMoves();
+					pCivilian->AIFinishMoves();
 					UnitProcessed(pCivilian->GetID());
 				}
 				else
@@ -6744,10 +6802,10 @@ void CvTacticalAI::ExecuteBarbarianCivilianEscortMove()
 					// Handle case of no path found at all for civilian
 					if(!pCivilian->GeneratePath(pTarget, iFlags, false /*bReuse*/))
 					{
-						pCivilian->finishMoves();
+						pCivilian->AIFinishMoves();
 						if(pEscort)
 						{
-							pEscort->finishMoves();
+							pEscort->AIFinishMoves();
 						}
 						if(GC.getLogging() && GC.getAILogging())
 						{
@@ -6856,8 +6914,8 @@ void CvTacticalAI::ExecuteBarbarianCivilianEscortMove()
 								{
 									if(!pEscort->GeneratePath(pTarget, 0, false /*bReuse*/))
 									{
-										pCivilian->finishMoves();
-										pEscort->finishMoves();
+										pCivilian->AIFinishMoves();
+										pEscort->AIFinishMoves();
 										if(GC.getLogging() && GC.getAILogging())
 										{
 											CvString strLogString;
@@ -6888,8 +6946,8 @@ void CvTacticalAI::ExecuteBarbarianCivilianEscortMove()
 										}
 										else
 										{
-											pCivilian->finishMoves();
-											pEscort->finishMoves();
+											pCivilian->AIFinishMoves();
+											pEscort->AIFinishMoves();
 											if(GC.getLogging() && GC.getAILogging())
 											{
 												CvString strLogString;
@@ -6921,8 +6979,8 @@ void CvTacticalAI::ExecuteBarbarianCivilianEscortMove()
 									}
 									else
 									{
-										pCivilian->finishMoves();
-										pEscort->finishMoves();
+										pCivilian->AIFinishMoves();
+										pEscort->AIFinishMoves();
 										if(GC.getLogging() && GC.getAILogging())
 										{
 											CvString strLogString;
@@ -6968,7 +7026,7 @@ void CvTacticalAI::ExecuteMoveToPlot(UnitHandle pUnit, CvPlot* pTarget, bool bSa
 			pUnit->PushMission(CvTypes::getMISSION_SKIP());
 			if(!bSaveMoves)
 			{
-				pUnit->finishMoves();
+				pUnit->AIFinishMoves();
 			}
 		}
 	}
@@ -6978,7 +7036,7 @@ void CvTacticalAI::ExecuteMoveToPlot(UnitHandle pUnit, CvPlot* pTarget, bool bSa
 		pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTarget->getX(), pTarget->getY(), MOVE_UNITS_IGNORE_DANGER);
 		if(!bSaveMoves)
 		{
-			pUnit->finishMoves();
+			pUnit->AIFinishMoves();
 		}
 	}
 
@@ -7032,7 +7090,7 @@ void CvTacticalAI::ExecuteNavalBlockadeMove(CvPlot* pTarget)
 	if(pUnit)
 	{
 		pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTarget->getX(), pTarget->getY());
-		pUnit->finishMoves();
+		pUnit->AIFinishMoves();
 		UnitProcessed(m_CurrentMoveUnits[0].GetID());
 		pUnit->SetTacticalAIPlot(NULL);
 	}
@@ -7065,7 +7123,7 @@ void CvTacticalAI::ExecuteMoveToTarget(CvPlot* pTarget)
 		else if(pUnit && it->GetMovesToTarget() < MAX_INT)
 		{
 			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTarget->getX(), pTarget->getY());
-			pUnit->finishMoves();
+			pUnit->AIFinishMoves();
 			UnitProcessed(it->GetID());
 			return;
 		}
@@ -7087,7 +7145,7 @@ void CvTacticalAI::ExecuteMoveToTarget(CvPlot* pTarget)
 		else if(pUnit && it->GetMovesToTarget() < MAX_INT)
 		{
 			pUnit->PushMission(CvTypes::getMISSION_MOVE_TO(), pTarget->getX(), pTarget->getY());
-			pUnit->finishMoves();
+			pUnit->AIFinishMoves();
 			UnitProcessed(it->GetID());
 			return;
 		}
@@ -7542,7 +7600,7 @@ bool CvTacticalAI::ExecuteOneProtectedBombard(CvTacticalTarget& kTarget)
 							LogTacticalMessage(strMsg, false);
 						}
 					}
-					pChosenUnit->finishMoves();
+					pChosenUnit->AIFinishMoves();
 					UnitProcessed(pChosenUnit->GetID());
 				}
 			}
@@ -7603,6 +7661,15 @@ bool CvTacticalAI::ExecuteOneProtectedBombard(CvTacticalTarget& kTarget)
 	}
 
 	return false;
+}
+
+bool CvTacticalAI::IsFlankPlotTooDangerous(CvUnit* pUnit, CvPlot* pPlot)
+{
+	if(!pUnit || m_pPlayer->isHuman() || m_pPlayer->isBarbarian() || pUnit->plot() == pPlot)
+	{
+		return false;
+	}
+	return m_pPlayer->GetPlotDanger(*pPlot) * 2 > pUnit->GetBaseCombatStrengthConsideringDamage() * 100 * 3;
 }
 
 /// Take a multi-hex attack on an enemy unit this turn
@@ -7672,7 +7739,18 @@ bool CvTacticalAI::ExecuteFlankAttack(CvTacticalTarget& kTarget)
 			for(unsigned int iI = 0; iI < m_TempTargets.size(); iI++)
 			{
 				pLoopPlot = GC.getMap().plot(m_TempTargets[iI].GetTargetX(), m_TempTargets[iI].GetTargetY());
-				if(!FindClosestUnit(pLoopPlot, 1, false/*bMustHaveHalfHP*/, false /*bMustBeRangedUnit*/, 0 /*iRangeRequired*/, false /*bNeedsIgnoreLOS*/, true /*bMustBeMeleeUnit*/))
+				int iEligible = 0;
+				if(FindClosestUnit(pLoopPlot, 1, false/*bMustHaveHalfHP*/, false /*bMustBeRangedUnit*/, 0 /*iRangeRequired*/, false /*bNeedsIgnoreLOS*/, true /*bMustBeMeleeUnit*/))
+				{
+					for(unsigned int jJ = 0; jJ < m_CurrentMoveUnits.size(); jJ++)
+					{
+						if(!IsFlankPlotTooDangerous(m_pPlayer->getUnit(m_CurrentMoveUnits[jJ].GetID()), pLoopPlot))
+						{
+							iEligible++;
+						}
+					}
+				}
+				if(iEligible == 0)
 				{
 					iFillableHexes--;
 					if(iFillableHexes < 2)
@@ -7685,10 +7763,14 @@ bool CvTacticalAI::ExecuteFlankAttack(CvTacticalTarget& kTarget)
 					// Save off the units that could get here
 					for(unsigned int jJ = 0; jJ < m_CurrentMoveUnits.size(); jJ++)
 					{
+						if(IsFlankPlotTooDangerous(m_pPlayer->getUnit(m_CurrentMoveUnits[jJ].GetID()), pLoopPlot))
+						{
+							continue;
+						}
 						CvBlockingUnit block;
 						block.SetUnitID(m_CurrentMoveUnits[jJ].GetID());
 						block.SetPlot(pLoopPlot);
-						block.SetNumChoices((int)m_CurrentMoveUnits.size());
+						block.SetNumChoices(iEligible);
 						block.SetDistanceToTarget(m_CurrentMoveUnits[jJ].GetMovesToTarget());
 						m_PotentialBlocks.push_back(block);
 					}
@@ -8112,7 +8194,7 @@ void CvTacticalAI::ExecuteWithdrawMoves()
 			{
 				MoveToEmptySpaceNearTarget(pUnit, pNearestCity->plot(), (pUnit->getDomainType()==DOMAIN_LAND));
 
-				pUnit->finishMoves();
+				pUnit->AIFinishMoves();
 				UnitProcessed(m_CurrentMoveUnits[iI].GetID(), pUnit->IsCombatUnit());
 
 				if(GC.getLogging() && GC.getAILogging())
@@ -9841,7 +9923,7 @@ void CvTacticalAI::PerformChosenMoves(int iFallbackMoveRange)
 						LogTacticalMessage(strMsg);
 					}
 				}
-				pUnit->finishMoves();
+				pUnit->AIFinishMoves();
 			}
 			UnitProcessed(pUnit->GetID());
 		}

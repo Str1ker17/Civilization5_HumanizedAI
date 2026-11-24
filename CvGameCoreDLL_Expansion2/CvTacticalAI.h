@@ -890,6 +890,7 @@ private:
 	bool ExecuteProtectedBombards(CvTacticalTarget& kTarget, bool bAttackUnderway);
 	bool ExecuteOneProtectedBombard(CvTacticalTarget& kTarget);
 	bool ExecuteFlankAttack(CvTacticalTarget& kTarget);
+	bool IsFlankPlotTooDangerous(CvUnit* pUnit, CvPlot* pPlot);
 	void ExecuteCloseOnTarget(CvTacticalTarget& kTarget, CvTacticalDominanceZone* pZone);
 	void ExecuteHedgehogDefense(CvTacticalTarget& kTarget, CvTacticalDominanceZone* pZone);
 	void ExecutePriorityAttacksOnUnitTarget(CvTacticalTarget& kTarget);

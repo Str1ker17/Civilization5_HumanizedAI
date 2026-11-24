@@ -383,6 +383,7 @@ bool IsTestStrategy_NeedAirCarriers(CvPlayer* pPlayer);
 
 // Functions that evaluate which operation to launch
 int ComputeRecommendedNavySize(CvPlayer* pPlayer);
+MultiunitFormationTypes GetCityAttackFormation(CvPlayer* pPlayer);
 int NumberOfFillableSlots(CvPlayer* pPlayer, MultiunitFormationTypes formation, bool bRequiresNavalMoves=false, int* piNumberSlotsRequired=NULL, int* piNumberLandReservesUsed=NULL);
 UnitAITypes FirstSlotCityCanFill(CvPlayer* pPlayer, MultiunitFormationTypes formation, bool bRequiresNavalMoves, bool bAtCoastalCity, bool bSecondaryUnit);
 }

@@ -639,6 +639,64 @@ static int HumanizedFoodRouteBuildingValue(const CvCity* pCity, CvBuildingEntry*
 	return iFood;
 }
 
+bool CityStrategyAIHelpers::IsHomeDefenseShort(CvPlayer& kPlayer)
+{
+	if(kPlayer.isMinorCiv() || kPlayer.isBarbarian() || kPlayer.isHuman())
+	{
+		return false;
+	}
+
+	const int iEnemyRange = 4;
+	const int iHomeRange = 3;
+	int iNeeded = 0;
+	int iHave = 0;
+	int iLoop;
+	for(CvCity* pLoopCity = kPlayer.firstCity(&iLoop); pLoopCity != NULL; pLoopCity = kPlayer.nextCity(&iLoop))
+	{
+		int iCityEnemies = 0;
+		for(int iDX = -iEnemyRange; iDX <= iEnemyRange; iDX++)
+		{
+			for(int iDY = -iEnemyRange; iDY <= iEnemyRange; iDY++)
+			{
+				CvPlot* pPlot = plotXYWithRangeCheck(pLoopCity->getX(), pLoopCity->getY(), iDX, iDY, iEnemyRange);
+				if(pPlot && pPlot->isVisible(kPlayer.getTeam()) && pPlot->isVisibleEnemyUnit(kPlayer.GetID()))
+				{
+					iCityEnemies++;
+				}
+			}
+		}
+		iNeeded += min(iCityEnemies, 2);
+
+		UnitTypes eProducing = pLoopCity->getProductionUnit();
+		CvUnitEntry* pkProducing = (eProducing != NO_UNIT) ? GC.getUnitInfo(eProducing) : NULL;
+		if(pkProducing && pkProducing->GetDomainType() == DOMAIN_LAND && (pkProducing->GetCombat() > 0 || pkProducing->GetRangedCombat() > 0))
+		{
+			iHave++;
+		}
+	}
+
+	for(CvUnit* pLoopUnit = kPlayer.firstUnit(&iLoop); pLoopUnit != NULL; pLoopUnit = kPlayer.nextUnit(&iLoop))
+	{
+		if(!pLoopUnit->IsCombatUnit() || pLoopUnit->getDomainType() != DOMAIN_LAND || pLoopUnit->AI_getUnitAIType() == UNITAI_EXPLORE)
+		{
+			continue;
+		}
+		int iCityLoop;
+		for(CvCity* pLoopCity = kPlayer.firstCity(&iCityLoop); pLoopCity != NULL; pLoopCity = kPlayer.nextCity(&iCityLoop))
+		{
+			if(plotDistance(pLoopUnit->getX(), pLoopUnit->getY(), pLoopCity->getX(), pLoopCity->getY()) <= iHomeRange)
+			{
+				iHave++;
+				break;
+			}
+		}
+	}
+
+	iNeeded += min(kPlayer.GetWorkerGuardShortage(), 2);
+
+	return iHave < iNeeded;
+}
+
 /// Determines if the yield is below a sustainable amount
 bool CvCityStrategyAI::IsYieldDeficient(YieldTypes eYieldType)
 {
@@ -800,6 +858,13 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 		// add in the weight of this unit as if I were deciding to build it without having a reason
 		iTempWeight += m_pUnitProductionAI->GetWeight(eUnitForOperation);
+
+		OperationSlot kOperationSlot = kPlayer.PeekAtNextUnitToBuildForOperationSlot(m_pCity->getArea());
+		CvAIOperation* pSlotOperation = kOperationSlot.IsValid() ? kPlayer.getAIOperation(kOperationSlot.m_iOperationID) : NULL;
+		if(pSlotOperation && pSlotOperation->GetOperationType() == AI_OPERATION_FOUND_CITY)
+		{
+			iTempWeight = 100000;
+		}
 
 		CvUnitEntry* pkUnitEntry = GC.getUnitInfo(eUnitForOperation);
 		if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_SETTLE)
@@ -1059,6 +1124,22 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 				if(iTempWeight > 0)
 					m_Buildables.push_back(buildable, iTempWeight);
+			}
+		}
+
+		if(CityStrategyAIHelpers::IsHomeDefenseShort(kPlayer))
+		{
+			UnitTypes eDefender = m_pUnitProductionAI->RecommendUnit(UNITAI_DEFENSE);
+			if(eDefender == NO_UNIT)
+			{
+				eDefender = m_pUnitProductionAI->RecommendUnit(UNITAI_ATTACK);
+			}
+			if(eDefender != NO_UNIT && eDefender != eIgnoreUnit)
+			{
+				buildable.m_eBuildableType = CITY_BUILDABLE_UNIT;
+				buildable.m_iIndex = eDefender;
+				buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eDefender, 0);
+				m_Buildables.push_back(buildable, 100000);
 			}
 		}
 

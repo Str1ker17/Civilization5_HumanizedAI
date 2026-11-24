@@ -190,6 +190,8 @@ private:
 //!  - Handles moves for all military units not recruited by the tactical or operational AI
 //!  - Also handles moves for workers and explorers (and settlers on the first turn)
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+struct BuilderDirective;
+
 class CvHomelandAI
 {
 public:
@@ -212,6 +214,10 @@ public:
 	// Public exploration routines
 	bool IsAnyValidExploreMoves(const CvUnit* pUnit) const;
 	bool ExecuteSpecialExploreMove(CvUnit* pUnit, CvPlot* pPlot);
+	bool MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits = false);
+	CvPlot* GetCombatRetreatPlot(CvUnit* pUnit);
+	void HoldCombatUnitInPlace(CvUnit* pUnit);
+	bool TryBreakoutAttack(CvUnit* pUnit);
 
 	// Public logging
 	void LogHomelandMessage(CvString& strMsg);
@@ -236,6 +242,10 @@ private:
 	void PlotMobileReserveMoves();
 	void PlotSentryMoves();
 	void PlotWorkerMoves();
+	void PlotWorkerGuardMoves();
+	void PlotWorkerCoverMoves();
+	CvPlot* GetWorkerEndPlot(CvUnit* pUnit, const BuilderDirective& kDirective);
+	UnitHandle FindWorkerGuard(CvPlot* pPlot);
 	void PlotWorkerSeaMoves();
 	void PlotPatrolMoves();
 	void PlotUpgradeMoves();
@@ -294,7 +304,6 @@ private:
 	bool FindUnitsForThisMove(AIHomelandMove eMove, bool bFirstTime);
 	CvPlot* FindPatrolTarget(CvUnit* pUnit);
 	bool GetBestUnitToReachTarget(CvPlot* pTarget, int iMaxTurns);
-	bool MoveCivilianToSafety(CvUnit* pUnit, bool bIgnoreUnits = false);
 	bool MoveToEmptySpaceNearTarget(CvUnit* pUnit, CvPlot* pTarget, bool bLand=true);
 	CvCity* ChooseBestFreeWonderCity(BuildingTypes eWonder, UnitHandle pEngineer);
 	CvPlot* FindArchaeologistTarget(CvUnit *pUnit);
@@ -303,6 +312,8 @@ private:
 	bool ExecuteCultureBlast(CvUnit* pUnit);
 	bool ExecuteGoldenAgeMove(CvUnit* pUnit);
 	bool IsValidExplorerEndTurnPlot(const CvUnit* pUnit, CvPlot* pPlot) const;
+	CvPlot* GetSafeMoveDestination(CvUnit* pUnit, CvPlot* pTarget);
+	void MoveCombatUnitSafely(CvUnit* pUnit, CvPlot* pTarget);
 	bool GetClosestUnitByTurnsToTarget(MoveUnitsArray &kMoveUnits, CvPlot* pTarget, int iMaxTurns, CvUnit** ppClosestUnit, int* piClosestTurns);
 	void ClearCurrentMoveUnits();
 	void ClearCurrentMoveHighPriorityUnits();

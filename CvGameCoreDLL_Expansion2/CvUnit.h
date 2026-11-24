@@ -713,6 +713,7 @@ public:
 	void setMoves(int iNewValue);
 	void changeMoves(int iChange);
 	void finishMoves();
+	void AIFinishMoves();
 
 	bool IsImmobile() const;
 	void SetImmobile(bool bValue);
