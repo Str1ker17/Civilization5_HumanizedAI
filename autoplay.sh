@@ -141,6 +141,22 @@ close_game() {
 	echo "closed the game on $GAME_DISPLAY"
 }
 
+idle_game() {
+	k=0
+	while [ $k -lt 30 ]; do
+		cg=$(cut -d: -f3 "/proc/$game_pid/cgroup" 2>/dev/null || true)
+		case $cg in
+		*/snap.steam.*.scope)
+			systemctl --user set-property --runtime "${cg##*/}" CPUWeight=idle > /dev/null 2>&1 || true
+			return 0
+			;;
+		esac
+		sleep 1
+		k=$((k + 1))
+	done
+	echo "no snap scope for the game, CPU weight not lowered" >&2
+}
+
 save_logs() {
 	mkdir -p "$1"
 	find "$LOGS" -type f -newer "$marker" -exec cp -p {} "$1/" \;
@@ -184,7 +200,7 @@ trap 'exit 130' INT TERM
 
 if [ "$XVFB" = 1 ]; then
 	if [ ! -S "/tmp/.X11-unix/X${XVFB_DISPLAY#:}" ]; then
-		Xvfb "$XVFB_DISPLAY" -screen 0 1280x800x24 -nolisten tcp > /dev/null 2>&1 &
+		systemd-run --user --scope -q -p CPUWeight=idle Xvfb "$XVFB_DISPLAY" -screen 0 1280x800x24 -nolisten tcp > /dev/null 2>&1 &
 		xvfb_pid=$!
 		i=0
 		while [ ! -S "/tmp/.X11-unix/X${XVFB_DISPLAY#:}" ] && [ $i -lt 20 ]; do
@@ -210,6 +226,10 @@ ini_set "$CONFIG" SyncRandSeed "$SEED"
 ini_set "$CONFIG" MapRandSeed "$SEED"
 ini_set "$CONFIG" AILog 1
 ini_set "$CONFIG" BuilderAILog "$BUILDERLOG"
+if [ -n "$SLOT" ]; then
+	ini_set "$GFX" ShadowLevel 0
+	ini_set "$GFX" TerrainDetailLevel 0
+fi
 if [ "$SUPERVISE" != 1 ] || [ "$XVFB" = 1 ]; then
 	ini_set "$GFX" FullScreen 0
 	ini_set "$GFX" WindowResX 1280
@@ -252,7 +272,9 @@ launch() {
 		for kv in $XVFB_ENV; do
 			set -- "$@" "$kv"
 		done
-		setsid -f snap run --shell steam -c "exec \"\$HOME/civ5-direct-launch.sh\" \"\$@\"" sh "$@" > /dev/null 2>&1 < /dev/null
+		setsid snap run --shell steam -c "exec \"\$HOME/civ5-direct-launch.sh\" \"\$@\"" sh "$@" > /dev/null 2>&1 < /dev/null &
+		game_pid=$!
+		idle_game
 	else
 		setsid -f /snap/bin/steam -applaunch 8930 > /dev/null 2>&1 < /dev/null
 	fi
