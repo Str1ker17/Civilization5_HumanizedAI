@@ -1009,6 +1009,18 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 				}
 			}
 
+			if(iTempWeight > 0 && !kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && !isWorldWonderClass(pkBuildingInfo->GetBuildingClassInfo()) && (pkBuildingInfo->GetHappiness() > 0 || pkBuildingInfo->GetUnmoddedHappiness() > 0))
+			{
+				if(kPlayer.GetExcessHappiness() < 0)
+				{
+					iTempWeight *= 8;
+				}
+				else if(kPlayer.GetExcessHappiness() < 3)
+				{
+					iTempWeight *= 4;
+				}
+			}
+
 			// If the City is a puppet, it avoids Wonders (because the human can't change it if he wants to build it somewhere else!)
 			if(GetCity()->IsPuppet())
 			{

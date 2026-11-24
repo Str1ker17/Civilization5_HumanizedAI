@@ -268,6 +268,28 @@ TechTypes CvTechAI::ChooseNextTech(CvPlayer *pPlayer, bool bFreeTech)
 			}
 		}
 
+		if(pPlayer->GetExcessHappiness() < 3)
+		{
+			for(int iI = 0; iI < m_ResearchableTechs.size(); iI++)
+			{
+				TechTypes eTech = (TechTypes)m_ResearchableTechs.GetElement(iI);
+				for(int iBldg = 0; iBldg < GC.getNumBuildingClassInfos(); iBldg++)
+				{
+					BuildingTypes eBuilding = (BuildingTypes)pPlayer->getCivilizationInfo().getCivilizationBuildings(iBldg);
+					CvBuildingEntry* pkBuildingInfo = (eBuilding != NO_BUILDING) ? GC.getBuildingInfo(eBuilding) : NULL;
+					if(pkBuildingInfo == NULL || pkBuildingInfo->GetPrereqAndTech() != eTech || isWorldWonderClass(pkBuildingInfo->GetBuildingClassInfo()))
+					{
+						continue;
+					}
+					if(pkBuildingInfo->GetHappiness() > 0 || pkBuildingInfo->GetUnmoddedHappiness() > 0)
+					{
+						m_ResearchableTechs.SetWeight(iI, m_ResearchableTechs.GetWeight(iI) * 2);
+						break;
+					}
+				}
+			}
+		}
+
 		std::vector<int> aiLuxuryTechs = HumanizedLuxuryImprovementTechs(pPlayer);
 		for(int iI = 0; iI < m_ResearchableTechs.size(); iI++)
 		{
