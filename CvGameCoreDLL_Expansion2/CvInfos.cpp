@@ -2832,6 +2832,9 @@ CvHandicapInfo::CvHandicapInfo() :
 	m_iImprovementCostPercent(0),
 	m_iCityProductionNumOptions(0),
 	m_iPolicyNumOptions(0),
+	m_iMistakePercent(0),
+	m_iMistakeMaxRank(1),
+	m_iMisjudgePercent(0),
 	m_iTechNumOptions(0),
 	m_iInflationPercent(0),
 	m_iFreeCulturePerTurn(0),
@@ -2988,6 +2991,21 @@ int CvHandicapInfo::GetTechNumOptions() const
 int CvHandicapInfo::GetPolicyNumOptions() const
 {
 	return m_iPolicyNumOptions;
+}
+//------------------------------------------------------------------------------
+int CvHandicapInfo::GetMistakePercent() const
+{
+	return m_iMistakePercent;
+}
+//------------------------------------------------------------------------------
+int CvHandicapInfo::GetMistakeMaxRank() const
+{
+	return m_iMistakeMaxRank;
+}
+//------------------------------------------------------------------------------
+int CvHandicapInfo::GetMisjudgePercent() const
+{
+	return m_iMisjudgePercent;
 }
 //------------------------------------------------------------------------------
 int CvHandicapInfo::getInflationPercent() const
@@ -3302,6 +3320,18 @@ bool CvHandicapInfo::CacheResults(Database::Results& kResults, CvDatabaseUtility
 
 	kUtility.PopulateArrayByExistence(m_pbFreeTechs, "Technologies", "HandicapInfo_FreeTechs", "TechType", "HandicapType", szHandicapType);
 	kUtility.PopulateArrayByExistence(m_pbAIFreeTechs, "Technologies", "HandicapInfo_AIFreeTechs", "TechType", "HandicapType", szHandicapType);
+
+	{
+		Database::Results kMistakeResults;
+		char szMistakeSQL[512];
+		sprintf_s(szMistakeSQL, "select MistakePercent, MistakeMaxRank, MisjudgePercent from HandicapInfo_HumanizedAI where HandicapType = '%s';", szHandicapType);
+		if(DB.Execute(kMistakeResults, szMistakeSQL) && kMistakeResults.Step())
+		{
+			m_iMistakePercent = kMistakeResults.GetInt(0);
+			m_iMistakeMaxRank = kMistakeResults.GetInt(1);
+			m_iMisjudgePercent = kMistakeResults.GetInt(2);
+		}
+	}
 
 	return true;
 }

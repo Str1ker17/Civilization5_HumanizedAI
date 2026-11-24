@@ -2143,7 +2143,7 @@ void CvMilitaryAI::UpdateBaseData()
 	m_iMandatoryReserveSize = (int)((float)iNumUnitsWanted * fMultiplier);
 
 	// add in a few for the difficulty level (all above Chieftain are boosted)
-	int iDifficulty = max(0,GC.getGame().getHandicapInfo().GetID() - 1);
+	int iDifficulty = max(0,GC.getGame().GetAIBehaviorHandicapID() - 1);
 	m_iMandatoryReserveSize += iDifficulty;
 
 	m_iMandatoryReserveSize = max(1,m_iMandatoryReserveSize);

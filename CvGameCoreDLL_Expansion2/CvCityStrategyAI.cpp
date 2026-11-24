@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "HumanizedAI.h"
 #include "ICvDLLUserInterface.h"
 #include "CvGameCoreUtils.h"
 #include "CvInternalGameCoreUtils.h"
@@ -810,7 +811,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 		buildable.m_iTurnsToConstruct = GetCity()->getProductionTurnsLeft(eUnitForArmy, 0);
 		iTempWeight = GC.getAI_CITYSTRATEGY_ARMY_UNIT_BASE_WEIGHT();
 		int iOffenseFlavor = kPlayer.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_OFFENSE"));
-		int iBonusMultiplier = max(1,GC.getGame().getHandicapInfo().GetID() - 5); // more at the higher difficulties
+		int iBonusMultiplier = max(1,GC.getGame().GetAIBehaviorHandicapID() - 5); // more at the higher difficulties
 		iTempWeight += (GC.getAI_CITYSTRATEGY_OPERATION_UNIT_FLAVOR_MULTIPLIER() * iOffenseFlavor * iBonusMultiplier);
 		// add in the weight of this unit as if I were deciding to build it without having a reason
 		iTempWeight += m_pUnitProductionAI->GetWeight(eUnitForArmy);
@@ -1050,9 +1051,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 	if(m_Buildables.GetTotalWeight() > 0)
 	{
-		// Choose from the best options (currently 2)
-		int iNumChoices = GC.getGame().getHandicapInfo().GetCityProductionNumOptions();
-		selection = m_Buildables.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing city build from Top Choices");
+		selection = HumanizedAIChoose(GET_PLAYER(m_pCity->getOwner()), m_Buildables, &fcn, "production");
 		int iRushIfMoreThanXTurns = GC.getAI_ATTEMPT_RUSH_OVER_X_TURNS_TO_BUILD();
 		if(GET_PLAYER(m_pCity->getOwner()).isMinorCiv())
 		{
@@ -2683,7 +2682,7 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_IsPuppet(CvCity* pCity)
 /// "Medium City" City Strategy: If a City is 5 or above and we are playing at a high difficulty level
 bool CityStrategyAIHelpers::IsTestCityStrategy_MediumCityHighDifficulty(CvCity* pCity)
 {
-	if(pCity->getPopulation() >= 5 && GC.getGame().getHandicapInfo().GetID() > 4)
+	if(pCity->getPopulation() >= 5 && GC.getGame().GetAIBehaviorHandicapID() > 4)
 	{
 		return true;
 	}

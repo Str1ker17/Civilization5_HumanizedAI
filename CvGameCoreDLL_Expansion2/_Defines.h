@@ -799,8 +799,6 @@
 ///
 #define NO_AI_VOTES
 ///
-#define AI_PEACE_TURNS
-///
 #define DO_CANCEL_DEALS_WITH_AI
 ///
 #define DO_EXTRACT_AI_SPIES

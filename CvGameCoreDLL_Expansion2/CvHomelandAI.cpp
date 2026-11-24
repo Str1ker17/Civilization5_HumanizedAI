@@ -1389,7 +1389,7 @@ void CvHomelandAI::PlotUpgradeMoves()
 		}
 
 		iFlavorMilitaryTraining = max(1,iFlavorMilitaryTraining/3);
-		int iBonusUpgrades = max(0,GC.getGame().getHandicapInfo().GetID() - 5); // more at the higher difficulties (the AI should have more money to spend)
+		int iBonusUpgrades = max(0,GC.getGame().GetAIBehaviorHandicapID() - 5); // more at the higher difficulties (the AI should have more money to spend)
 		iFlavorMilitaryTraining += iBonusUpgrades;
 
 		// Try to find a unit that can upgrade immediately

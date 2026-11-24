@@ -1820,6 +1820,13 @@ public:
 	CvPlot* GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea = -1) const;
 
 	void LogUnitStates(const char* szPhase);
+	void SetMistakeHandicap(HandicapTypes eHandicap);
+	int GetMistakePercent() const;
+	int GetMistakeMaxRank() const;
+	int GetMisjudgePercent() const;
+	int GetMisjudgeWeight(int iWeight, int iKey1, int iKey2) const;
+	void LogMistakeChoice(const char* szKind, int iChosen, int iSize, int iBestWeight, int iChosenWeight) const;
+
 	// New Victory Stuff
 	int GetNumWonders() const;
 	void ChangeNumWonders(int iValue);
@@ -2590,6 +2597,7 @@ protected:
 	FAutoVariable<int, CvPlayer> m_iOriginalCapitalX;
 	FAutoVariable<int, CvPlayer> m_iOriginalCapitalY;
 	FAutoVariable<int, CvPlayer> m_iNumWonders;
+	HandicapTypes m_eMistakeHandicap;
 	FAutoVariable<int, CvPlayer> m_iNumPolicies;
 	FAutoVariable<int, CvPlayer> m_iNumGreatPeople;
 	FAutoVariable<int, CvPlayer> m_iCityConnectionHappiness;

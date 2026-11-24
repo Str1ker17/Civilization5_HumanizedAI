@@ -777,6 +777,26 @@ bool CvBuilderTaskingAI::EvaluateBuilder(CvUnit* pUnit, BuilderDirective* paDire
 		AddRouteDirectives(pUnit, pPlot, iMoveTurnsAway);
 	}
 
+	bool bMisjudge = m_pPlayer->GetMisjudgePercent() > 0 && m_aDirectives.size() > 0;
+	BuilderDirective kBestTrueDirective;
+	int iBestTrueWeight = 0;
+	if(bMisjudge)
+	{
+		for(int iDirective = 0; iDirective < m_aDirectives.size(); iDirective++)
+		{
+			const BuilderDirective& kDirective = m_aDirectives.GetElement(iDirective);
+			int iTrueWeight = m_aDirectives.GetWeight(iDirective);
+			if(iTrueWeight > iBestTrueWeight)
+			{
+				iBestTrueWeight = iTrueWeight;
+				kBestTrueDirective = kDirective;
+			}
+			int iKey2 = 2 + 16 * ((int)kDirective.m_eBuild + 1) + (int)kDirective.m_eDirective;
+			int iJudgedWeight = m_pPlayer->GetMisjudgeWeight(iTrueWeight, GC.getMap().plotNum(kDirective.m_sX, kDirective.m_sY), iKey2);
+			m_aDirectives.IncreaseWeight(iDirective, iJudgedWeight - iTrueWeight);
+		}
+	}
+
 	m_aDirectives.StableSortItems();
 
 	int iBestWeight = 0;
@@ -840,6 +860,12 @@ bool CvBuilderTaskingAI::EvaluateBuilder(CvUnit* pUnit, BuilderDirective* paDire
 	//if (m_aDirectives.size() > 0 && iAssignIndex > 0)
 	if(iAssignIndex > 0)
 	{
+		if(bMisjudge)
+		{
+			const BuilderDirective& kChosen = paDirectives[0];
+			bool bSame = kChosen.m_eDirective == kBestTrueDirective.m_eDirective && kChosen.m_eBuild == kBestTrueDirective.m_eBuild && kChosen.m_sX == kBestTrueDirective.m_sX && kChosen.m_sY == kBestTrueDirective.m_sY;
+			m_pPlayer->LogMistakeChoice("worker", bSame ? 0 : 1, m_aDirectives.size(), iBestTrueWeight, 0);
+		}
 		if(m_bLogging)
 		{
 			LogDirective(paDirectives[0], pUnit, -1, true /*bChosen*/);

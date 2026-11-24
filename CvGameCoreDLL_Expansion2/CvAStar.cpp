@@ -43,6 +43,7 @@
 #define PATH_BUILD_ROUTE_ALREADY_FLAGGED_DISCOUNT				(0.5f)
 #define PATH_END_TURN_MOUNTAIN_WEIGHT							(1000000)
 #define PATH_END_TURN_MISSIONARY_OTHER_TERRITORY				(150000)
+#define PATH_END_TURN_MINOR_INTRUSION							(150000)
 
 #include <xmmintrin.h>
 
@@ -1123,6 +1124,20 @@ int PathCost(CvAStarNode* parent, CvAStarNode* node, int data, const void* point
 				iCost += PATH_TERRITORY_WEIGHT;
 			}
 		}
+		if (!pCacheData->isHuman() || pCacheData->IsAutomated())
+		{
+			PlayerTypes ePlotOwner = pToPlot->getOwner();
+			PlayerTypes eUnitOwner = pUnit->getOwner();
+			if (ePlotOwner != NO_PLAYER && GET_PLAYER(ePlotOwner).isMinorCiv() && !pUnit->IsAngerFreeUnit() && !GET_PLAYER(eUnitOwner).GetPlayerTraits()->IsAngerFreeIntrusionOfCityStates())
+			{
+				CvMinorCivAI* pMinorAI = GET_PLAYER(ePlotOwner).GetMinorCivAI();
+				CvPlot* pDestPlot = (finder->GetDestX() >= 0 && finder->GetDestY() >= 0)?kMap.plotCheckInvalid(finder->GetDestX(), finder->GetDestY()):NULL;
+				if ((!pDestPlot || pDestPlot->getOwner() != ePlotOwner) && !pMinorAI->IsPlayerHasOpenBorders(eUnitOwner) && pMinorAI->GetAngerFreeIntrusionCounter(eUnitOwner) == 0 && !pMinorAI->IsAtWarWithPlayersTeam(eUnitOwner))
+				{
+					iCost += PATH_END_TURN_MINOR_INTRUSION;
+				}
+			}
+		}
 
 #if PATH_CITY_AVOID_WEIGHT != 0
 		if(pToPlot->getPlotCity() && !(pToPlot->getX() == finder->GetDestX() && pToPlot->getY() == finder->GetDestY()))
@@ -1494,7 +1509,7 @@ int PathValid(CvAStarNode* parent, CvAStarNode* node, int data, const void* poin
 #ifdef ASTAR_AI_CONTROL_FIX_RADAR
 	if(kFromNodeCacheData.bIsRevealedToTeam || pCacheData->isEmbarked() || !bIsHuman)
 #else
-	if(bAIControl || kFromNodeCacheData.bIsRevealedToTeam || pCacheData->isEmbarked() || !bIsHuman)
+	if(bAIControl || kFromNodeCacheData.bIsRevealedToTeam || pCacheData->isEmbarked())
 #endif
 	{
 		if(iFinderInfo & MOVE_UNITS_THROUGH_ENEMY)
@@ -1949,7 +1964,7 @@ int IgnoreUnitsValid(CvAStarNode* parent, CvAStarNode* node, int data, const voi
 #ifdef ASTAR_AI_CONTROL_FIX_RADAR
 	if((pFromPlot->isRevealed(eUnitTeam) || pCacheData->isEmbarked()) || !pCacheData->isHuman())
 #else
-	if(bAIControl || (pFromPlot->isRevealed(eUnitTeam) || pCacheData->isEmbarked()) || !pCacheData->isHuman())
+	if(bAIControl || (pFromPlot->isRevealed(eUnitTeam) || pCacheData->isEmbarked()))
 #endif
 	{
 		if(!pUnit->canEnterTerrain(*pToPlot, CvUnit::MOVEFLAG_PRETEND_CORRECT_EMBARK_STATE) || !pUnit->canEnterTerritory(eUnitTeam))
@@ -3670,7 +3685,7 @@ int TacticalAnalysisMapPathValid(CvAStarNode* parent, CvAStarNode* node, int dat
 #ifdef ASTAR_AI_CONTROL_FIX_RADAR
 	if(!bIsHuman || kFromNodeCacheData.bIsRevealedToTeam || pCacheData->isEmbarked())
 #else
-	if(bAIControl || !bIsHuman || kFromNodeCacheData.bIsRevealedToTeam || pCacheData->isEmbarked())
+	if(bAIControl || kFromNodeCacheData.bIsRevealedToTeam || pCacheData->isEmbarked())
 #endif
 	{
 		if(iFinderInfo & MOVE_UNITS_THROUGH_ENEMY)

@@ -2285,7 +2285,7 @@ CvAIOperationCityStateAttack::CvAIOperationCityStateAttack()
 }
 MultiunitFormationTypes CvAIOperationCityStateAttack::GetFormation() const
 {
-	return (GC.getGame().getHandicapInfo().GetID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_CITY_STATE_ATTACK_FORCE;
+	return (GC.getGame().GetAIBehaviorHandicapID() > 4 && !(GC.getMap().GetAIMapHint() & 1)) ? MUFORMATION_BIGGER_CITY_ATTACK_FORCE : MUFORMATION_CITY_STATE_ATTACK_FORCE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2425,7 +2425,7 @@ bool CvAIOperationDestroyBarbarianCamp::ShouldAbort()
 	if(!rtnValue)
 	{
 		// See if our target camp is still there
-		if (!m_bCivilianRescue && GetTargetPlot()->getImprovementType() != GC.getBARBARIAN_CAMP_IMPROVEMENT())
+		if (!m_bCivilianRescue && GetTargetPlot()->getRevealedImprovementType(GET_PLAYER(m_eOwner).getTeam()) != GC.getBARBARIAN_CAMP_IMPROVEMENT())
 		{
 			// Success!  The camp is gone
 			if(GC.getLogging() && GC.getAILogging())

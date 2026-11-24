@@ -6170,6 +6170,12 @@ CvHandicapInfo& CvGame::getHandicapInfo() const
 #pragma warning ( pop )
 }
 
+//	--------------------------------------------------------------------------------
+int CvGame::GetAIBehaviorHandicapID() const
+{
+	return GC.getInfoTypeForString("HANDICAP_PRINCE");
+}
+
 HandicapTypes CvGame::getHandicapType() const
 {
 	return m_eHandicap;

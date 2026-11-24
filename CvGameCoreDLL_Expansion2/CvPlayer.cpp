@@ -1590,6 +1590,7 @@ void CvPlayer::uninit()
 	m_iOriginalCapitalX = -1;
 	m_iOriginalCapitalY = -1;
 	m_iNumWonders = 0;
+	m_eMistakeHandicap = NO_HANDICAP;
 	m_iNumPolicies = 0;
 	m_iNumGreatPeople = 0;
 	m_iHolyCityID = -1;
@@ -8807,7 +8808,7 @@ void CvPlayer::found(int iX, int iY)
 #endif
 #ifdef CREATE_APOLLO_PROGRAM_WITH_CAP_FOUND
 	ProjectTypes eApolloProgram = (ProjectTypes)GC.getInfoTypeForString("PROJECT_APOLLO_PROGRAM", true);
-	if (isHuman() && eApolloProgram != NO_PROJECT)
+	if (eApolloProgram != NO_PROJECT)
 	{
 		if (GET_TEAM(getTeam()).getProjectCount(eApolloProgram) < 1)
 		{
@@ -31702,6 +31703,8 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 	TeamTypes eTeam = pUnit->getTeam();
 
 	int iBestFoundValue = 0;
+	int iBestTrueValue = 0;
+	int iChosenTrueValue = 0;
 	CvPlot* pBestFoundPlot = NULL;
 
 	int iEvalDistance = /*12*/ GC.getSETTLER_EVALUATION_DISTANCE();
@@ -31791,13 +31794,23 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 						iValue /= 3;
 					}
 				}
-				if(iValue > iBestFoundValue)
+				int iJudgedValue = GetMisjudgeWeight(iValue, iPlotLoop, 1);
+				if(iValue > iBestTrueValue)
 				{
-					iBestFoundValue = iValue;
+					iBestTrueValue = iValue;
+				}
+				if(iJudgedValue > iBestFoundValue)
+				{
+					iBestFoundValue = iJudgedValue;
+					iChosenTrueValue = iValue;
 					pBestFoundPlot = pPlot;
 				}
 			}
 		}
+	}
+	if(pBestFoundPlot)
+	{
+		LogMistakeChoice("settle", (iChosenTrueValue < iBestTrueValue) ? 1 : 0, 0, iBestTrueValue, iChosenTrueValue);
 	}
 	return pBestFoundPlot;
 }
@@ -31902,6 +31915,69 @@ void CvPlayer::LogUnitStates(const char* szPhase)
 		pLog->Msg(strLog);
 	}
 }
+//	--------------------------------------------------------------------------------
+void CvPlayer::SetMistakeHandicap(HandicapTypes eHandicap)
+{
+	m_eMistakeHandicap = eHandicap;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMistakePercent() const
+{
+	if(isHuman() || isMinorCiv() || isBarbarian())
+		return 0;
+	const CvHandicapInfo* pkHandicap = GC.getHandicapInfo((m_eMistakeHandicap != NO_HANDICAP) ? m_eMistakeHandicap : GC.getGame().getHandicapType());
+	return pkHandicap ? pkHandicap->GetMistakePercent() : 0;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMistakeMaxRank() const
+{
+	const CvHandicapInfo* pkHandicap = GC.getHandicapInfo((m_eMistakeHandicap != NO_HANDICAP) ? m_eMistakeHandicap : GC.getGame().getHandicapType());
+	return pkHandicap ? pkHandicap->GetMistakeMaxRank() : 1;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMisjudgePercent() const
+{
+	if(isHuman() || isMinorCiv() || isBarbarian())
+		return 0;
+	const CvHandicapInfo* pkHandicap = GC.getHandicapInfo((m_eMistakeHandicap != NO_HANDICAP) ? m_eMistakeHandicap : GC.getGame().getHandicapType());
+	return pkHandicap ? pkHandicap->GetMisjudgePercent() : 0;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetMisjudgeWeight(int iWeight, int iKey1, int iKey2) const
+{
+	int iPercent = GetMisjudgePercent();
+	if(iPercent <= 0 || iWeight <= 0)
+		return iWeight;
+	unsigned int uHash = (unsigned int)GetID() * 0x9E3779B1u;
+	uHash ^= (unsigned int)iKey1 * 0x85EBCA77u;
+	uHash ^= (unsigned int)iKey2 * 0xC2B2AE3Du;
+	uHash ^= (unsigned int)(GC.getGame().getGameTurn() / 10) * 0x27D4EB2Fu;
+	uHash ^= uHash >> 15;
+	uHash *= 0x2C1B3C6Du;
+	uHash ^= uHash >> 12;
+	uHash *= 0x297A2D39u;
+	uHash ^= uHash >> 15;
+	int iNoise = (int)(uHash % (unsigned int)(2 * iPercent + 1)) - iPercent;
+	return (int)(((long long)iWeight * (100 + iNoise)) / 100);
+}
+
+//	--------------------------------------------------------------------------------
+void CvPlayer::LogMistakeChoice(const char* szKind, int iChosen, int iSize, int iBestWeight, int iChosenWeight) const
+{
+	if(!(GC.getLogging() && GC.getAILogging()) || isHuman() || isMinorCiv() || isBarbarian())
+		return;
+	FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedAILog.csv", FILogFile::kDontTimeStamp);
+	if(!pLog)
+		return;
+	CvString strLog;
+	strLog.Format("%03d, %d, %s, %d, %d, %d, %d, %d, %d", GC.getGame().getElapsedGameTurns(), (int)GetID(), szKind, GetMistakePercent(), GetMisjudgePercent(), iChosen, iSize, iBestWeight, iChosenWeight);
+	pLog->Msg(strLog);
+}
+
 
 //	--------------------------------------------------------------------------------
 /// How many Wonders has this Player constructed?

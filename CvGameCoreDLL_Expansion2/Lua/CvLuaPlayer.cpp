@@ -81,6 +81,7 @@ void CvLuaPlayer::PushMethods(lua_State* L, int t)
 	Method(GetNumWorldWonders);
 	Method(ChangeNumWorldWonders);
 	Method(GetNumWondersBeatenTo);
+	Method(SetMistakeHandicap);
 	Method(SetNumWondersBeatenTo);
 
 	Method(IsCapitalConnectedToCity);
@@ -1408,6 +1409,11 @@ int CvLuaPlayer::lChangeNumWorldWonders(lua_State* L)
 }
 //------------------------------------------------------------------------------
 //int GetNumWondersBeatenTo(int iOtherPlayer);
+int CvLuaPlayer::lSetMistakeHandicap(lua_State* L)
+{
+	return BasicLuaMethod(L, &CvPlayerAI::SetMistakeHandicap);
+}
+//------------------------------------------------------------------------------
 int CvLuaPlayer::lGetNumWondersBeatenTo(lua_State* L)
 {
 	CvPlayerAI* pkPlayer = GetInstance(L);

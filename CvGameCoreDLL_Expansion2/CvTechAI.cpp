@@ -6,6 +6,7 @@
 	All rights reserved. 
 	------------------------------------------------------------------------------------------------------- */
 #include "CvGameCoreDLLPCH.h"
+#include "HumanizedAI.h"
 #include "CvGameCoreDLLUtil.h"
 #include "CvTechAI.h"
 #include "CvGameCoreUtils.h"
@@ -181,8 +182,7 @@ TechTypes CvTechAI::ChooseNextTech(CvPlayer *pPlayer, bool bFreeTech)
 	// If total weight is above 0, choose one above a threshold
 	if(m_ResearchableTechs.GetTotalWeight() > 0)
 	{
-		int iNumChoices =GC.getGame().getHandicapInfo().GetTechNumOptions();
-		rtnValue = (TechTypes) m_ResearchableTechs.ChooseFromTopChoices(iNumChoices, &fcn, "Choosing tech from Top Choices");
+		rtnValue = (TechTypes) HumanizedAIChoose(*pPlayer, m_ResearchableTechs, &fcn, "tech");
 		LogResearchChoice(rtnValue);
 	}
 

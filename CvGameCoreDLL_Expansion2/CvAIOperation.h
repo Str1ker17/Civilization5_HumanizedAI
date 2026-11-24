@@ -400,7 +400,7 @@ public:
 	}
 	virtual MultiunitFormationTypes GetFormation() const
 	{
-		return (GC.getGame().getHandicapInfo().GetID() > 4) ? MUFORMATION_BASIC_CITY_ATTACK_FORCE : MUFORMATION_SMALL_CITY_ATTACK_FORCE;
+		return (GC.getGame().GetAIBehaviorHandicapID() > 4) ? MUFORMATION_BASIC_CITY_ATTACK_FORCE : MUFORMATION_SMALL_CITY_ATTACK_FORCE;
 	}
 };
 
