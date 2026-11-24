@@ -589,10 +589,20 @@ function HumanizedAutoplayInGame()
 	local baseUpdate = OnUpdate;
 	local lastTurn = -1;
 	local finished = false;
+	local gameView = AutoplayGet( "GameView" ) or "";
 	ContextPtr:SetUpdate( function( fDTime )
 		baseUpdate( fDTime );
 		if finished then
 			return;
+		end
+		if gameView ~= "" and AutoplayGet( "Status" ) == "running" then
+			if gameView == "none" then
+				SetGameViewRenderType( GameViewTypes.GAMEVIEW_NONE );
+			elseif gameView == "strategic" then
+				SetGameViewRenderType( GameViewTypes.GAMEVIEW_STRATEGIC );
+			end
+			AutoplayLog( "game view " .. gameView );
+			gameView = "";
 		end
 		local turn = Game.GetGameTurn();
 		local over = Game.GetGameState() ~= GameplayGameStateTypes.GAMESTATE_ON;

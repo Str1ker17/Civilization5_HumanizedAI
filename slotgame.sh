@@ -15,6 +15,9 @@ if [ ! -d "$DST" ]; then
 	cp -as "$GAME" "$DST.tmp"
 	mv "$DST.tmp" "$DST"
 fi
+ROOT=$(cd "$(dirname "$0")" && pwd)
+cp "$ROOT/Mods/HumanizedAutoplay.lua" "$DST/$MOD/Mods/HumanizedAutoplay.lua.tmp"
+mv "$DST/$MOD/Mods/HumanizedAutoplay.lua.tmp" "$DST/$MOD/Mods/HumanizedAutoplay.lua"
 if [ -n "$DLL" ]; then
 	cp "$DLL" "$DST/$MOD/CvGameCore_Expansion2.dll.tmp"
 	mv "$DST/$MOD/CvGameCore_Expansion2.dll.tmp" "$DST/$MOD/CvGameCore_Expansion2.dll"

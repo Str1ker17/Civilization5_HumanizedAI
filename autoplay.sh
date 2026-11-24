@@ -59,6 +59,9 @@ VIEW=${VIEW:-0}
 BUILDERLOG=${BUILDERLOG:-0}
 START_TIMEOUT=${START_TIMEOUT:-600}
 TURN_TIMEOUT=${TURN_TIMEOUT:-600}
+WINDOW_X=${WINDOW_X:-1280}
+WINDOW_Y=${WINDOW_Y:-800}
+GAMEVIEW=${GAMEVIEW:-}
 WINDOW_TIMEOUT=${WINDOW_TIMEOUT:-180}
 EXIT_TIMEOUT=${EXIT_TIMEOUT:-120}
 START_RETRIES=${START_RETRIES:-2}
@@ -148,6 +151,7 @@ idle_game() {
 		case $cg in
 		*/snap.steam.*.scope)
 			systemctl --user set-property --runtime "${cg##*/}" CPUWeight=idle > /dev/null 2>&1 || true
+			echo "game scope $cg"
 			return 0
 			;;
 		esac
@@ -232,8 +236,8 @@ if [ -n "$SLOT" ]; then
 fi
 if [ "$SUPERVISE" != 1 ] || [ "$XVFB" = 1 ]; then
 	ini_set "$GFX" FullScreen 0
-	ini_set "$GFX" WindowResX 1280
-	ini_set "$GFX" WindowResY 800
+	ini_set "$GFX" WindowResX "$WINDOW_X"
+	ini_set "$GFX" WindowResY "$WINDOW_Y"
 fi
 mkdir -p "$OUT"
 marker=$OUT/.started
@@ -241,7 +245,7 @@ prepare() {
 	db set AutoplayTurns "$TURNS" Status pending Turn -1 WorldSize "$WORLDSIZE" GameSpeed "$GAMESPEED" \
 		Handicap "$HANDICAP" MapScript "$MAPSCRIPT" Civs "$CIVS" MinorCivs "$MINORCIVS" GameOptions "$GAMEOPTIONS" Mistakes "$MISTAKES" \
 		SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0 Coach "$COACH" CoachReplay 0 \
-		Dump "$DUMP" DumpFrom "$DUMP_FROM" DumpTo "$DUMP_TO" DumpIndex "$DUMP_FROM" View "$VIEW"
+		Dump "$DUMP" DumpFrom "$DUMP_FROM" DumpTo "$DUMP_TO" DumpIndex "$DUMP_FROM" View "$VIEW" GameView "$GAMEVIEW"
 	: > "$marker"
 }
 {
@@ -251,7 +255,7 @@ prepare() {
 	echo "options=$GAMEOPTIONS"
 	echo "mistakes=$MISTAKES"
 	echo "saveas=$SAVEAS load=$LOAD dump=$DUMP from=$DUMP_FROM to=$DUMP_TO view=$VIEW"
-	echo "xvfb=$XVFB display=$GAME_DISPLAY env=$XVFB_ENV supervise=$SUPERVISE coach=$COACH slot=$SLOT"
+	echo "xvfb=$XVFB display=$GAME_DISPLAY env=$XVFB_ENV supervise=$SUPERVISE coach=$COACH slot=$SLOT window=${WINDOW_X}x$WINDOW_Y gameview=$GAMEVIEW"
 	echo "git=$(git -C "$ROOT" describe --always --dirty)"
 	echo "dll=$(md5sum "$ROOT/CvGameCoreDLL_Expansion2/BuildOutput/VS2013_ModWin32/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
 	echo "game=${GAMEDIR:-$MAINGAME} gamedll=$(md5sum < "${GAMEDIR:-$MAINGAME}/Assets/DLC/Tournament Mod V12.3a + HumanizedAI/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
