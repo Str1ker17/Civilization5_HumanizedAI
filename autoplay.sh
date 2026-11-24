@@ -54,6 +54,10 @@ VIEW=${VIEW:-0}
 BUILDERLOG=${BUILDERLOG:-0}
 START_TIMEOUT=${START_TIMEOUT:-600}
 TURN_TIMEOUT=${TURN_TIMEOUT:-600}
+WINDOW_TIMEOUT=${WINDOW_TIMEOUT:-180}
+EXIT_TIMEOUT=${EXIT_TIMEOUT:-120}
+START_RETRIES=${START_RETRIES:-2}
+WINESERVER="$HOME/snap/steam/common/.local/share/Steam/steamapps/common/Proton 11.0/files/bin/wineserver"
 OUT=${OUT:-"$ROOT/runs/$(date +%Y%m%d-%H%M%S)-s$SEED-t$TURNS"}
 
 db() {
@@ -116,6 +120,25 @@ EOF2
 
 game_windows() {
 	xwininfo -display "${1:-$GAME_DISPLAY}" -root -tree 2>/dev/null | grep -c '("steam_app_8930"' || true
+}
+
+close_game() {
+	snap run --shell steam -c "WINEPREFIX=\"\$1\" \"\$2\" -k" sh "$PFX" "$WINESERVER" > /dev/null 2>&1 || true
+	j=0
+	while [ "$(game_windows)" -ne 0 ] && [ $j -lt 15 ]; do
+		sleep 2
+		j=$((j + 1))
+	done
+	if [ "$(game_windows)" -ne 0 ]; then
+		echo "game on $GAME_DISPLAY did not close" >&2
+		return 1
+	fi
+	echo "closed the game on $GAME_DISPLAY"
+}
+
+save_logs() {
+	mkdir -p "$1"
+	find "$LOGS" -type f -newer "$marker" -exec cp -p {} "$1/" \;
 }
 
 if [ "$(game_windows)" -ne 0 ] || { [ -z "$SLOT" ] && [ "$(game_windows "$DISPLAY")" -ne 0 ]; }; then
@@ -187,14 +210,15 @@ if [ "$SUPERVISE" != 1 ] || [ "$XVFB" = 1 ]; then
 	ini_set "$GFX" WindowResX 1280
 	ini_set "$GFX" WindowResY 800
 fi
-db set AutoplayTurns "$TURNS" Status pending Turn -1 WorldSize "$WORLDSIZE" GameSpeed "$GAMESPEED" \
-	Handicap "$HANDICAP" MapScript "$MAPSCRIPT" Civs "$CIVS" MinorCivs "$MINORCIVS" GameOptions "$GAMEOPTIONS" Mistakes "$MISTAKES" \
-	SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0 Coach "$COACH" CoachReplay 0 \
-	Dump "$DUMP" DumpFrom "$DUMP_FROM" DumpTo "$DUMP_TO" DumpIndex "$DUMP_FROM" View "$VIEW"
-
 mkdir -p "$OUT"
 marker=$OUT/.started
-: > "$marker"
+prepare() {
+	db set AutoplayTurns "$TURNS" Status pending Turn -1 WorldSize "$WORLDSIZE" GameSpeed "$GAMESPEED" \
+		Handicap "$HANDICAP" MapScript "$MAPSCRIPT" Civs "$CIVS" MinorCivs "$MINORCIVS" GameOptions "$GAMEOPTIONS" Mistakes "$MISTAKES" \
+		SaveAs "$SAVEAS" LoadFile "$LOAD" Supervise "$SUPERVISE" SuperviseNotes 0 Coach "$COACH" CoachReplay 0 \
+		Dump "$DUMP" DumpFrom "$DUMP_FROM" DumpTo "$DUMP_TO" DumpIndex "$DUMP_FROM" View "$VIEW"
+	: > "$marker"
+}
 {
 	echo "seed=$SEED turns=$TURNS size=$WORLDSIZE speed=$GAMESPEED handicap=$HANDICAP minors=$MINORCIVS"
 	echo "map=$MAPSCRIPT"
@@ -207,30 +231,43 @@ marker=$OUT/.started
 	echo "dll=$(md5sum "$ROOT/CvGameCoreDLL_Expansion2/BuildOutput/VS2013_ModWin32/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
 } > "$OUT/run.txt"
 
-if [ -n "$SLOT" ]; then
-	if ! cmp -s "$ROOT/steam-direct-launch.sh" "$LAUNCHER"; then
-		cp "$ROOT/steam-direct-launch.sh" "$LAUNCHER.$$"
-		chmod +x "$LAUNCHER.$$"
-		mv "$LAUNCHER.$$" "$LAUNCHER"
-	fi
-	set -- "${PFX%/pfx}" "$XVFB_DISPLAY"
-	for kv in $XVFB_ENV; do
-		set -- "$@" "$kv"
-	done
-	setsid -f snap run --shell steam -c "exec \"\$HOME/civ5-direct-launch.sh\" \"\$@\"" sh "$@" > /dev/null 2>&1 < /dev/null
-else
-	setsid -f /snap/bin/steam -applaunch 8930 > /dev/null 2>&1 < /dev/null
+if [ -n "$SLOT" ] && ! cmp -s "$ROOT/steam-direct-launch.sh" "$LAUNCHER"; then
+	cp "$ROOT/steam-direct-launch.sh" "$LAUNCHER.$$"
+	chmod +x "$LAUNCHER.$$"
+	mv "$LAUNCHER.$$" "$LAUNCHER"
 fi
-echo "launched, output in $OUT"
+launch() {
+	prepare
+	if [ -n "$SLOT" ]; then
+		set -- "${PFX%/pfx}" "$XVFB_DISPLAY"
+		for kv in $XVFB_ENV; do
+			set -- "$@" "$kv"
+		done
+		setsid -f snap run --shell steam -c "exec \"\$HOME/civ5-direct-launch.sh\" \"\$@\"" sh "$@" > /dev/null 2>&1 < /dev/null
+	else
+		setsid -f /snap/bin/steam -applaunch 8930 > /dev/null 2>&1 < /dev/null
+	fi
+	echo "launched, output in $OUT"
+	t0=$(date +%s)
+	last_turn=
+	last_change=$t0
+	seen=
+	gone=0
+}
 
-t0=$(date +%s)
-last_turn=
-last_change=$t0
+attempt=1
 iconified=
+launch
 while :; do
 	sleep 5
 	status=$(db get Status)
 	win=$(game_window)
+	if [ "$(game_windows)" -ne 0 ]; then
+		seen=1
+		gone=0
+	elif [ -n "$seen" ]; then
+		gone=$((gone + 1))
+	fi
 	if [ "$XVFB" = 1 ] && [ -n "$win" ]; then
 		rm -f "$ENVFILE"
 	fi
@@ -250,33 +287,66 @@ while :; do
 			echo "game window closed at turn $turn"
 			break
 		fi
+		if [ "$gone" -ge 3 ]; then
+			echo "game window gone at turn $turn" >&2
+			save_logs "$OUT"
+			exit 1
+		fi
 		if [ "$turn" != "$last_turn" ]; then
 			last_turn=$turn
 			last_change=$now
 			echo "turn $turn ($((now - t0))s)"
 		elif [ "$SUPERVISE" != 1 ] && [ $((now - last_change)) -gt "$TURN_TIMEOUT" ]; then
-			echo "no progress at turn $turn for ${TURN_TIMEOUT}s, game left running" >&2
+			echo "no progress at turn $turn for ${TURN_TIMEOUT}s" >&2
+			save_logs "$OUT"
+			if [ -n "$SLOT" ] && [ "$VIEW" != 1 ]; then
+				close_game || true
+			else
+				echo "game left running" >&2
+			fi
 			exit 1
 		fi
 		;;
 	*)
-		if [ $((now - t0)) -gt "$START_TIMEOUT" ]; then
-			echo "game did not start within ${START_TIMEOUT}s (status=$status), game left running" >&2
-			exit 1
+		why=
+		if [ "$gone" -ge 3 ]; then
+			why="game window gone before the start"
+		elif [ -z "$seen" ] && [ $((now - t0)) -gt "$WINDOW_TIMEOUT" ]; then
+			why="no game window within ${WINDOW_TIMEOUT}s"
+		elif [ $((now - t0)) -gt "$START_TIMEOUT" ]; then
+			why="game did not start within ${START_TIMEOUT}s"
+		fi
+		if [ -n "$why" ]; then
+			echo "$why (status=$status, attempt $attempt)" >&2
+			save_logs "$OUT/start-fail-$attempt"
+			if [ -z "$SLOT" ]; then
+				if [ "$(game_windows)" -ne 0 ]; then
+					echo "game left running" >&2
+				fi
+				exit 1
+			fi
+			close_game || exit 1
+			if [ "$attempt" -gt "$START_RETRIES" ]; then
+				exit 1
+			fi
+			attempt=$((attempt + 1))
+			launch
 		fi
 		;;
 	esac
 done
 
 i=0
-while [ "$(game_windows)" -ne 0 ] && [ $i -lt 60 ]; do
+while [ "$(game_windows)" -ne 0 ] && [ $((i * 2)) -lt "$EXIT_TIMEOUT" ]; do
 	sleep 2
 	i=$((i + 1))
 done
+save_logs "$OUT"
+rm -f "$marker"
 if [ "$(game_windows)" -ne 0 ]; then
 	echo "game did not exit after the run" >&2
+	if [ -n "$SLOT" ]; then
+		close_game || true
+	fi
 fi
-
-find "$LOGS" -type f -newer "$marker" -exec cp -p {} "$OUT/" \;
-rm -f "$marker"
 echo "logs: $(find "$OUT" -type f | wc -l) files, $(du -sh "$OUT" | cut -f1)"
