@@ -1819,6 +1819,7 @@ public:
 	int GetBestSettleAreas(int iMinScore, int& iFirstArea, int& iSecondArea);
 	CvPlot* GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea = -1) const;
 
+	void LogUnitStates(const char* szPhase);
 	// New Victory Stuff
 	int GetNumWonders() const;
 	void ChangeNumWonders(int iValue);

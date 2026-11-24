@@ -342,6 +342,7 @@ void CvLuaUnit::PushMethods(lua_State* L, int t)
 	Method(SetMoves);
 	Method(ChangeMoves);
 	Method(FinishMoves);
+	Method(SetTurnProcessed);
 	Method(IsImmobile);
 
 	Method(GetExperience);
@@ -3366,6 +3367,16 @@ int CvLuaUnit::lFinishMoves(lua_State* L)
 	CvUnit* pkUnit = GetInstance(L);
 
 	pkUnit->finishMoves();
+	return 0;
+}
+//------------------------------------------------------------------------------
+//void SetTurnProcessed(bool bValue);
+int CvLuaUnit::lSetTurnProcessed(lua_State* L)
+{
+	CvUnit* pkUnit = GetInstance(L);
+	const bool bValue = lua_toboolean(L, 2);
+
+	pkUnit->SetTurnProcessed(bValue);
 	return 0;
 }
 //------------------------------------------------------------------------------

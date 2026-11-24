@@ -3195,6 +3195,23 @@ void CvUnitCombat::ResolveCombat(const CvCombatInfo& kInfo, uint uiParentEventID
 		auto_ptr<ICvUnit1> pDllUnit(new CvDllUnit(pDefenderSupport));
 		gDLL->GameplayUnitVisibility(pDllUnit.get(), !pDefenderSupport->isInvisible(eActiveTeam, false));
 	}
+
+	CvCity* pAttackerCity = kInfo.getCity(BATTLE_UNIT_ATTACKER);
+	CvPlot* pTargetPlot = kInfo.getPlot();
+	ICvEngineScriptSystem1* pkCombatScriptSystem = gDLL->GetScriptSystem();
+	if(pkCombatScriptSystem && pTargetPlot && (pAttacker || pAttackerCity))
+	{
+		CvLuaArgsHandle args;
+		args->Push(pAttacker ? pAttacker->getOwner() : pAttackerCity->getOwner());
+		args->Push(pAttacker ? pAttacker->GetID() : -1);
+		args->Push(pAttacker ? pAttacker->getX() : pAttackerCity->getX());
+		args->Push(pAttacker ? pAttacker->getY() : pAttackerCity->getY());
+		args->Push(pTargetPlot->getX());
+		args->Push(pTargetPlot->getY());
+
+		bool bResult;
+		LuaSupport::CallHook(pkCombatScriptSystem, "HumanizedCombat", args.get(), bResult);
+	}
 	// Nuclear Mission
 	if(kInfo.getAttackIsNuclear())
 	{

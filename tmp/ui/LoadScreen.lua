@@ -141,3 +141,6 @@ function()
 		UIManager:SetUICursor( 0 );
 	end
 end );
+
+include( "HumanizedAutoplay" );
+HumanizedAutoplayLoadScreen();

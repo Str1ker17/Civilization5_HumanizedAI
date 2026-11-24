@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Context Font="TwCenMT16" FontStyle="Shadow" ColorSet="Beige_Black_Alpha" >
+
+	<Instance Name="Dot" >
+		<WorldAnchor ID="Anchor" >
+			<Box Anchor="C,C" Size="7,7" Color="255,255,255,255" ID="Box" />
+		</WorldAnchor>
+	</Instance>
+
+	<Instance Name="BigDot" >
+		<WorldAnchor ID="Anchor" >
+			<Box Anchor="C,C" Size="11,11" Color="255,255,255,255" ID="Box" />
+		</WorldAnchor>
+	</Instance>
+
+	<Instance Name="Marker" >
+		<WorldAnchor ID="Anchor" >
+			<Button Anchor="C,C" Size="20,20" ID="Button" >
+				<Box Anchor="C,C" Size="20,20" Color="0,0,0,255" >
+					<Box Anchor="C,C" Size="16,16" Color="255,255,255,255" ID="Box" >
+						<Label Anchor="C,C" Font="TwCenMT14" String="" ID="Mark" />
+					</Box>
+				</Box>
+			</Button>
+		</WorldAnchor>
+	</Instance>
+
+	<Instance Name="QueueLine" >
+		<Button Anchor="L,T" Size="460,18" ID="Button" >
+			<Label Anchor="L,C" Offset="4,0" Font="TwCenMT14" String="" ID="Text" />
+		</Button>
+	</Instance>
+
+	<Container ID="DotStore" />
+	<Container ID="MarkerStore" />
+
+	<Box Anchor="R,T" Offset="8,200" Size="490,560" Color="0,0,0,210" Hidden="1" ID="QueuePanel" >
+		<ScrollPanel Anchor="L,T" Offset="6,6" Size="466,548" ID="QueueScroll" Vertical="1" AutoScrollBar="1" >
+			<Stack Anchor="L,T" StackGrowth="Bottom" Padding="1" ID="QueueStack" />
+			<ScrollBar Offset="-3.0" Style="VertSlider" Anchor="R,C" AnchorSide="O,I" Length="530" />
+			<UpButton Offset="-3.0" Style="ScrollBarUp" Anchor="R,T" AnchorSide="O,I" />
+			<DownButton Offset="-3.0" Style="ScrollBarDown" Anchor="R,B" AnchorSide="O,I" />
+		</ScrollPanel>
+	</Box>
+
+	<Box Anchor="C,T" Offset="0,64" Size="640,150" Color="0,0,0,210" ID="Panel" >
+		<Stack Anchor="L,T" Offset="10,6" StackGrowth="Bottom" Padding="4" >
+			<Label Font="TwCenMT20" String="" ID="TurnLabel" />
+			<Label Font="TwCenMT16" WrapWidth="470" String="" ID="MoveLabel" />
+		</Stack>
+		<Box Anchor="L,B" Offset="10,12" Size="314,24" Color="255,255,200,255" >
+			<Box Anchor="C,C" Size="312,22" Color="0,0,0,255" >
+				<EditBox CallOnChar="0" EditMode="1" Size="310,22" Anchor="C,C" ID="Note" Font="TwCenMT18" MaxLength="200" />
+			</Box>
+		</Box>
+		<GridButton Anchor="R,B" Offset="160,8" Style="SmallButton" Size="140,30" StateOffsetIncrement="0,0" ID="BadButton" >
+			<Label Anchor="C,C" String="" ID="BadLabel" Font="TwCenMT18" ColorSet="Beige_Black_Alpha" FontStyle="Shadow" />
+		</GridButton>
+		<GridButton Anchor="R,B" Offset="10,8" Style="SmallButton" Size="140,30" StateOffsetIncrement="0,0" ID="NextButton" >
+			<Label Anchor="C,C" String="" ID="NextLabel" Font="TwCenMT18" ColorSet="Beige_Black_Alpha" FontStyle="Shadow" />
+		</GridButton>
+		<GridButton Anchor="R,T" Offset="10,6" Style="SmallButton" Size="140,24" StateOffsetIncrement="0,0" ID="QueueButton" >
+			<Label Anchor="C,C" String="" ID="QueueLabel" Font="TwCenMT16" ColorSet="Beige_Black_Alpha" FontStyle="Shadow" />
+		</GridButton>
+		<GridButton Anchor="R,T" Offset="10,34" Style="SmallButton" Size="140,24" StateOffsetIncrement="0,0" Hidden="1" ID="ReplayButton" >
+			<Label Anchor="C,C" String="" ID="ReplayLabel" Font="TwCenMT16" ColorSet="Beige_Black_Alpha" FontStyle="Shadow" />
+		</GridButton>
+	</Box>
+
+</Context>

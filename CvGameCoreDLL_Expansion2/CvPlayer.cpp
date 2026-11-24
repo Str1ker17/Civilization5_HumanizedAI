@@ -20758,6 +20758,10 @@ void CvPlayer::setTurnActive(bool bNewValue, bool bDoTurn)
 			CvAssertFmt(GetEndTurnBlockingType() == NO_ENDTURN_BLOCKING_TYPE, "Expecting the end-turn blocking to be NO_ENDTURN_BLOCKING_TYPE, got %d", GetEndTurnBlockingType());
 			SetEndTurnBlocking(NO_ENDTURN_BLOCKING_TYPE, -1);	// Make sure this is clear so the UI doesn't block when it is not our turn.
 
+			if(GC.getLogging() && GC.getAILogging() && !isHuman() && !isMinorCiv() && !isBarbarian())
+			{
+				LogUnitStates("end");
+			}
 			DoUnitReset();
 
 			if(!isHuman())
@@ -31798,6 +31802,106 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 	return pBestFoundPlot;
 }
 
+//	--------------------------------------------------------------------------------
+void CvPlayer::LogUnitStates(const char* szPhase)
+{
+	FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedUnitLog.csv", FILogFile::kDontTimeStamp);
+	if(!pLog)
+		return;
+	int iTurn = GC.getGame().getGameTurn();
+	int iLoop;
+	for(CvUnit* pUnit = firstUnit(&iLoop); pUnit != NULL; pUnit = nextUnit(&iLoop))
+	{
+		CvPlot* pPlot = pUnit->plot();
+		if(!pPlot || pUnit->getDomainType() == DOMAIN_AIR)
+			continue;
+		int iEnemy1 = 0;
+		int iEnemy2 = 0;
+		int iNearestVisible = 99;
+		for(int iPlayerLoop = 0; iPlayerLoop < MAX_PLAYERS; iPlayerLoop++)
+		{
+			CvPlayer& kOther = GET_PLAYER((PlayerTypes)iPlayerLoop);
+			if(iPlayerLoop == GetID() || !kOther.isAlive() || !GET_TEAM(getTeam()).isAtWar(kOther.getTeam()))
+				continue;
+			int iUnitLoop;
+			for(CvUnit* pEnemy = kOther.firstUnit(&iUnitLoop); pEnemy != NULL; pEnemy = kOther.nextUnit(&iUnitLoop))
+			{
+				if(!pEnemy->IsCombatUnit() || !pEnemy->plot() || !pEnemy->plot()->isVisible(getTeam()) || pEnemy->isInvisible(getTeam(), false))
+					continue;
+				int iDistance = plotDistance(pEnemy->getX(), pEnemy->getY(), pPlot->getX(), pPlot->getY());
+				if(iDistance <= 1)
+					iEnemy1++;
+				if(iDistance <= 2)
+					iEnemy2++;
+				if(iDistance < iNearestVisible)
+					iNearestVisible = iDistance;
+			}
+		}
+		int iFriends1 = 0;
+		int iCivilians1 = 0;
+		for(int iDX = -1; iDX <= 1; iDX++)
+		{
+			for(int iDY = -1; iDY <= 1; iDY++)
+			{
+				CvPlot* pAdjacent = plotXYWithRangeCheck(pPlot->getX(), pPlot->getY(), iDX, iDY, 1);
+				if(!pAdjacent)
+					continue;
+				for(int iUnitIndex = 0; iUnitIndex < pAdjacent->getNumUnits(); iUnitIndex++)
+				{
+					CvUnit* pOther = pAdjacent->getUnitByIndex(iUnitIndex);
+					if(pOther && pOther != pUnit && pOther->getOwner() == GetID())
+					{
+						if(pOther->IsCombatUnit())
+							iFriends1++;
+						else
+							iCivilians1++;
+					}
+				}
+			}
+		}
+		int iRange = max(1, pUnit->maxMoves() / GC.getMOVE_DENOMINATOR());
+		int iHereDanger = GetPlotDanger(*pPlot);
+		bool bAnyDanger = iHereDanger > 0;
+		for(int iDX = -iRange; iDX <= iRange && !bAnyDanger; iDX++)
+		{
+			for(int iDY = -iRange; iDY <= iRange && !bAnyDanger; iDY++)
+			{
+				CvPlot* pLoopPlot = plotXYWithRangeCheck(pPlot->getX(), pPlot->getY(), iDX, iDY, iRange);
+				if(pLoopPlot && GetPlotDanger(*pLoopPlot) > 0)
+					bAnyDanger = true;
+			}
+		}
+		bool bPaths = bAnyDanger && strcmp(szPhase, "start") == 0 && pUnit->getMoves() > 0;
+		UnitHandle hUnit(pUnit);
+		int iSafe = 0;
+		int iBetter = 0;
+		int iMinDanger = MAX_INT;
+		for(int iDX = -iRange; iDX <= iRange; iDX++)
+		{
+			for(int iDY = -iRange; iDY <= iRange; iDY++)
+			{
+				CvPlot* pLoopPlot = plotXYWithRangeCheck(pPlot->getX(), pPlot->getY(), iDX, iDY, iRange);
+				if(!pLoopPlot || pLoopPlot == pPlot || !pLoopPlot->isValidDomainForLocation(*pUnit) || !pUnit->canMoveInto(*pLoopPlot, CvUnit::MOVEFLAG_DESTINATION))
+					continue;
+				if(bPaths && TurnsToReachTarget(hUnit, pLoopPlot) > 1)
+					continue;
+				int iLoopDanger = GetPlotDanger(*pLoopPlot);
+				if(iLoopDanger == 0)
+					iSafe++;
+				if(iLoopDanger < iHereDanger)
+					iBetter++;
+				iMinDanger = min(iMinDanger, iLoopDanger);
+			}
+		}
+		CvString strLog;
+		strLog.Format("%03d, %s, %d, %d, %s, %d, %d, %d, hp=%d/%d moves=%d/%d act=%d combat=%d danger=%d str100=%d city=%d own=%d attacked=%d enemy1=%d enemy2=%d nearestvis=%d friends1=%d civilians1=%d safe=%d better=%d paths=%d mindanger=%d fort=%d",
+			iTurn, szPhase, (int)GetID(), pUnit->GetID(), pUnit->getUnitInfo().GetType(), (int)pUnit->AI_getUnitAIType(), pPlot->getX(), pPlot->getY(),
+			pUnit->GetCurrHitPoints(), pUnit->GetMaxHitPoints(), pUnit->getMoves(), pUnit->maxMoves(), (int)pUnit->GetActivityType(), pUnit->IsCombatUnit() ? 1 : 0,
+			GetPlotDanger(*pPlot), pUnit->IsCombatUnit() ? pUnit->GetBaseCombatStrengthConsideringDamage() * 100 : 0, pPlot->isCity() ? 1 : 0, pPlot->getOwner() == GetID() ? 1 : 0,
+			pUnit->isOutOfAttacks() ? 1 : 0, iEnemy1, iEnemy2, iNearestVisible, iFriends1, iCivilians1, iSafe, iBetter, bPaths ? 1 : 0, iMinDanger == MAX_INT ? -1 : iMinDanger, pUnit->getFortifyTurns());
+		pLog->Msg(strLog);
+	}
+}
 
 //	--------------------------------------------------------------------------------
 /// How many Wonders has this Player constructed?

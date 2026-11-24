@@ -1281,6 +1281,7 @@ void CvEconomicAI::LogMonitor(void)
 
 	// civ name
 	AppendToLog(strHeader, strLog, "Civ Name", strPlayerName);
+	AppendToLog(strHeader, strLog, "Player", (int)m_pPlayer->GetID());
 
 	// turn
 	AppendToLog(strHeader, strLog, "Turn", GC.getGame().getGameTurn());

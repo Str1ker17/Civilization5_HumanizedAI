@@ -30,6 +30,7 @@ end
 include( "IconSupport" );
 include( "SupportFunctions"  );
 include( "InstanceManager" );
+include( "HumanizedChat" );
 local g_ChatInstances = {};
 
 local g_iChatTeam   = -1;
@@ -327,6 +328,18 @@ ContextPtr:SetShowHideHandler( ShowHideHandler );
 -------------------------------------------------
 -- NEW: replace input handles with configurable variables
 function InputHandler( uiMsg, wParam, lParam )
+    if MouseEvents.MButtonUp ~= nil and uiMsg == MouseEvents.MButtonUp then
+        local tag = HumanizedChatPlotTag();
+        if tag then
+            if not m_bChatOpen then
+                OnChatToggle();
+            end
+            Controls.ChatEntry:SetText( Controls.ChatEntry:GetText() .. tag );
+            Controls.ChatEntry:TakeFocus();
+            UI.PostKeyMessage( Keys.VK_END );
+        end
+        return true;
+    end
     -- NEW: update GameInfoActions now?
     if g_needsUpdate == true then
         Game.UpdateActions();
@@ -664,3 +677,4 @@ Controls.EmotesScrollPanel:ReprocessAnchoring()
 Controls.EmotesScrollPanel:CalculateInternalSize()
 
 LoadChatMessages();
+HumanizedChatDumpHistory();
