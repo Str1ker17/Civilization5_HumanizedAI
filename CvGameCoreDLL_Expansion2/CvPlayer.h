@@ -1819,6 +1819,7 @@ public:
 	int GetBestSettleAreas(int iMinScore, int& iFirstArea, int& iSecondArea);
 	CvPlot* GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea = -1) const;
 
+	int GetWorkedUnimprovedBacklog() const;
 	void LogUnitStates(const char* szPhase);
 	void SetMistakeHandicap(HandicapTypes eHandicap);
 	int GetMistakePercent() const;
@@ -2598,6 +2599,8 @@ protected:
 	FAutoVariable<int, CvPlayer> m_iOriginalCapitalY;
 	FAutoVariable<int, CvPlayer> m_iNumWonders;
 	HandicapTypes m_eMistakeHandicap;
+	mutable int m_iBacklogCacheTurn;
+	mutable int m_iBacklogCache;
 	FAutoVariable<int, CvPlayer> m_iNumPolicies;
 	FAutoVariable<int, CvPlayer> m_iNumGreatPeople;
 	FAutoVariable<int, CvPlayer> m_iCityConnectionHappiness;

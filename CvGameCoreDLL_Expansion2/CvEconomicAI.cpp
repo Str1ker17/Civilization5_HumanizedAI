@@ -16,6 +16,7 @@
 #include "Fireworks/FVariableSystem.h"
 #include "CvImprovementClasses.h"
 #include "CvAStar.h"
+#include "CvInternalGameCoreUtils.h"
 #include "CvCitySpecializationAI.h"
 #include "CvTypes.h"
 #include "cvStopWatch.h"
@@ -818,6 +819,7 @@ void CvEconomicAI::DoTurn()
 	if(!m_pPlayer->isHuman())
 	{
 		DoHurry();
+		DoBuildingPurchases();
 		DoPlotPurchases();
 		DisbandExtraWorkers();
 		DisbandExtraArchaeologists();
@@ -1792,6 +1794,120 @@ void CvEconomicAI::DoHurry()
 		pBestHurryCity->hurry(eBestHurryType);
 		pBestHurryCity->GetCityStrategyAI()->LogHurry(eBestHurryType, iBestHurryAmount, iBestHurryAmountAvailable, iBestHurryTurnsSaved);
 	}
+}
+
+void CvEconomicAI::DoBuildingPurchases()
+{
+	if(m_pPlayer->isHuman() || m_pPlayer->isMinorCiv() || m_pPlayer->isBarbarian())
+	{
+		return;
+	}
+
+	int iGold = m_pPlayer->GetTreasury()->GetGold();
+	int iRate = m_pPlayer->calculateGoldRate();
+	int iReserve = 50 + 25 * (int)m_pPlayer->GetCurrentEra();
+	if(iRate < 0)
+	{
+		iReserve -= 10 * iRate;
+	}
+	if(iGold <= iReserve)
+	{
+		return;
+	}
+
+	for(int iI = 0; iI < (int)m_RequestedSavings.size(); iI++)
+	{
+		if(m_RequestedSavings[iI].m_eType != PURCHASE_TYPE_MINOR_CIV_GIFT && m_RequestedSavings[iI].m_eType != PURCHASE_TYPE_BUILDING && m_RequestedSavings[iI].m_eType != PURCHASE_TYPE_UNIT)
+		{
+			iReserve += m_RequestedSavings[iI].m_iAmount;
+		}
+	}
+	if(iGold <= iReserve)
+	{
+		return;
+	}
+
+	CvCity* pBestCity = NULL;
+	BuildingTypes eBestBuilding = NO_BUILDING;
+	UnitTypes eBestUnit = NO_UNIT;
+	int iBestCost = 0;
+	int iBestScore = 0;
+	int iBestTurns = 0;
+	int iLoop = 0;
+	int iWorkers = m_pPlayer->GetNumUnitsWithUnitAI(UNITAI_WORKER, true, false);
+	for(CvCity* pLoopCity = m_pPlayer->firstCity(&iLoop); pLoopCity != NULL; pLoopCity = m_pPlayer->nextCity(&iLoop))
+	{
+		UnitTypes eUnit = pLoopCity->getProductionUnit();
+		CvUnitEntry* pkUnitInfo = (eUnit != NO_UNIT) ? GC.getUnitInfo(eUnit) : NULL;
+		if(pkUnitInfo && pkUnitInfo->GetDefaultUnitAIType() == UNITAI_WORKER && iWorkers <= m_pPlayer->getNumCities())
+		{
+			int iTurnsLeft = pLoopCity->getProductionTurnsLeft();
+			if(iTurnsLeft >= 2 && pLoopCity->IsCanPurchase(true, true, eUnit, NO_BUILDING, NO_PROJECT, YIELD_GOLD))
+			{
+				int iCost = pLoopCity->GetPurchaseCost(eUnit);
+				int iScore = (iCost > 0) ? iTurnsLeft * 3000 / iCost : 0;
+				if(iCost > 0 && iGold - iCost >= iReserve && iScore > iBestScore)
+				{
+					iBestScore = iScore;
+					pBestCity = pLoopCity;
+					eBestUnit = eUnit;
+					eBestBuilding = NO_BUILDING;
+					iBestCost = iCost;
+					iBestTurns = iTurnsLeft;
+				}
+			}
+			continue;
+		}
+		BuildingTypes eBuilding = pLoopCity->getProductionBuilding();
+		CvBuildingEntry* pkBuildingInfo = (eBuilding != NO_BUILDING) ? GC.getBuildingInfo(eBuilding) : NULL;
+		if(pkBuildingInfo == NULL)
+		{
+			continue;
+		}
+		const CvBuildingClassInfo& kClass = pkBuildingInfo->GetBuildingClassInfo();
+		if(isWorldWonderClass(kClass) || isTeamWonderClass(kClass) || isNationalWonderClass(kClass))
+		{
+			continue;
+		}
+		int iTurnsLeft = pLoopCity->getProductionTurnsLeft();
+		if(iTurnsLeft < 3 || !pLoopCity->IsCanPurchase(true, true, NO_UNIT, eBuilding, NO_PROJECT, YIELD_GOLD))
+		{
+			continue;
+		}
+		int iCost = pLoopCity->GetPurchaseCost(eBuilding);
+		if(iCost <= 0 || iGold - iCost < iReserve)
+		{
+			continue;
+		}
+		int iScore = iTurnsLeft * 1000 / iCost;
+		if(iScore > iBestScore)
+		{
+			iBestScore = iScore;
+			pBestCity = pLoopCity;
+			eBestBuilding = eBuilding;
+			eBestUnit = NO_UNIT;
+			iBestCost = iCost;
+			iBestTurns = iTurnsLeft;
+		}
+	}
+
+	if(pBestCity == NULL)
+	{
+		return;
+	}
+
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
+		if(pLog)
+		{
+			CvString strLog;
+			strLog.Format("%03d, %s, purchase, %s, %s, cost=%d, turns=%d, gold=%d, rate=%d, reserve=%d", GC.getGame().getElapsedGameTurns(), m_pPlayer->getCivilizationShortDescription(),
+				pBestCity->getName().GetCString(), (eBestUnit != NO_UNIT) ? GC.getUnitInfo(eBestUnit)->GetType() : GC.getBuildingInfo(eBestBuilding)->GetType(), iBestCost, iBestTurns, iGold, iRate, iReserve);
+			pLog->Msg(strLog);
+		}
+	}
+	pBestCity->Purchase(eBestUnit, eBestBuilding, NO_PROJECT, YIELD_GOLD);
 }
 
 /// Spend money buying plots
@@ -3050,20 +3166,11 @@ bool EconomicAIHelpers::IsTestStrategy_TechLeader(CvPlayer* pPlayer)
 }
 
 /// "Early Expansion" Player Strategy: An early Strategy simply designed to get player up to 3 Cities quickly.
-bool EconomicAIHelpers::IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer)
+int EconomicAIHelpers::GetDesiredCityCount(CvPlayer* pPlayer)
 {
 	int iDesiredCities;
 	int iFlavorExpansion = 0;
 	int iFlavorGrowth = 0;
-
-#ifdef NQM_AI_GIMP_NO_BUILDING_SETTLERS
-	if ((pPlayer->isHuman() && GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE)) || (!pPlayer->isHuman() && GC.getGame().isOption("GAMEOPTION_AI_TWEAKS")))
-#else
-	if(GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE) && pPlayer->isHuman())
-#endif
-	{
-		return false;
-	}
 
 	iDesiredCities = pPlayer->GetEconomicAI()->GetEarlyCityNumberTarget();
 	for(int iFlavorLoop = 0; iFlavorLoop < GC.getNumFlavorTypes() && (iFlavorExpansion == 0 || iFlavorGrowth == 0); iFlavorLoop++)
@@ -3079,12 +3186,27 @@ bool EconomicAIHelpers::IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer)
 	}
 
 	iDesiredCities = (iDesiredCities * iFlavorExpansion) / max(iFlavorGrowth, 1);
-	int iDifficulty = max(0,GC.getGame().getHandicapInfo().GetID() - 3);
+	int iDifficulty = max(0,GC.getGame().GetAIBehaviorHandicapID() - 3);
 	iDesiredCities += iDifficulty;
 
 	// scale this based on world size
 	const int iDefaultNumTiles = 80*52;
 	iDesiredCities = (iDesiredCities * GC.getMap().numPlots()) / iDefaultNumTiles;
+	return iDesiredCities;
+}
+
+bool EconomicAIHelpers::IsTestStrategy_EarlyExpansion(CvPlayer* pPlayer)
+{
+#ifdef NQM_AI_GIMP_NO_BUILDING_SETTLERS
+	if ((pPlayer->isHuman() && GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE)) || (!pPlayer->isHuman() && GC.getGame().isOption("GAMEOPTION_AI_TWEAKS")))
+#else
+	if(GC.getGame().isOption(GAMEOPTION_ONE_CITY_CHALLENGE) && pPlayer->isHuman())
+#endif
+	{
+		return false;
+	}
+
+	int iDesiredCities = GetDesiredCityCount(pPlayer);
 
 	// See how many unowned Tiles there are on this player's landmass
 	if(pPlayer->getCapitalCity() != NULL)

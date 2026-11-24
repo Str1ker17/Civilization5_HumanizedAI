@@ -299,6 +299,7 @@ private:
 	void MakeOffensivePurchases();
 	void RequestImprovements();
 	void DisbandObsoleteUnits();
+	void DisbandForDeficit();
 	bool IsAttackReady(MultiunitFormationTypes eFormation, AIOperationTypes eOperationType) const;
 
 	// Logging functions

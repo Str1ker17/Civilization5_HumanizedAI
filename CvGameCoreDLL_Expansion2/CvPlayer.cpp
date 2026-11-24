@@ -1591,6 +1591,8 @@ void CvPlayer::uninit()
 	m_iOriginalCapitalY = -1;
 	m_iNumWonders = 0;
 	m_eMistakeHandicap = NO_HANDICAP;
+	m_iBacklogCacheTurn = -1;
+	m_iBacklogCache = 0;
 	m_iNumPolicies = 0;
 	m_iNumGreatPeople = 0;
 	m_iHolyCityID = -1;
@@ -31813,6 +31815,47 @@ CvPlot* CvPlayer::GetBestSettlePlot(CvUnit* pUnit, bool bEscorted, int iArea) co
 		LogMistakeChoice("settle", (iChosenTrueValue < iBestTrueValue) ? 1 : 0, 0, iBestTrueValue, iChosenTrueValue);
 	}
 	return pBestFoundPlot;
+}
+
+//	--------------------------------------------------------------------------------
+int CvPlayer::GetWorkedUnimprovedBacklog() const
+{
+	int iTurn = GC.getGame().getGameTurn();
+	if(m_iBacklogCacheTurn == iTurn)
+	{
+		return m_iBacklogCache;
+	}
+
+	int iBacklog = 0;
+	int iLoop;
+	for(const CvCity* pLoopCity = firstCity(&iLoop); pLoopCity != NULL; pLoopCity = nextCity(&iLoop))
+	{
+		for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+		{
+			CvPlot* pPlot = pLoopCity->GetCityCitizens()->GetCityPlotFromIndex(iI);
+			if(!pPlot || pPlot->isCity() || pPlot->isWater() || !pLoopCity->GetCityCitizens()->IsWorkingPlot(pPlot))
+			{
+				continue;
+			}
+			if(pPlot->getImprovementType() != NO_IMPROVEMENT && !pPlot->IsImprovementPillaged())
+			{
+				continue;
+			}
+			for(int iBuild = 0; iBuild < GC.getNumBuildInfos(); iBuild++)
+			{
+				CvBuildInfo* pkBuild = GC.getBuildInfo((BuildTypes)iBuild);
+				if(pkBuild && pkBuild->getImprovement() != NO_IMPROVEMENT && canBuild(pPlot, (BuildTypes)iBuild))
+				{
+					iBacklog++;
+					break;
+				}
+			}
+		}
+	}
+
+	m_iBacklogCacheTurn = iTurn;
+	m_iBacklogCache = iBacklog;
+	return iBacklog;
 }
 
 //	--------------------------------------------------------------------------------

@@ -8,9 +8,11 @@
 #include "CvGameCoreDLLPCH.h"
 #include "HumanizedAI.h"
 #include "CvGameCoreDLLUtil.h"
+#include "CvInternalGameCoreUtils.h"
 #include "CvTechAI.h"
 #include "CvGameCoreUtils.h"
 #include "CvInfosSerializationHelper.h"
+#include "CvImprovementClasses.h"
 
 #include "LintFree.h"
 
@@ -138,6 +140,72 @@ void CvTechAI::AddFlavorWeights(FlavorTypes eFlavor, int iWeight, int iPropagati
 
 
 /// Choose a player's next tech research project
+static std::vector<int> HumanizedLuxuryImprovementTechs(CvPlayer* pPlayer)
+{
+	std::vector<int> aiTechs;
+	CvTeamTechs* pTeamTechs = GET_TEAM(pPlayer->getTeam()).GetTeamTechs();
+	const CvPlotsVector& aiPlots = pPlayer->GetPlots();
+	for(uint uiPlot = 0; uiPlot < aiPlots.size(); uiPlot++)
+	{
+		if(aiPlots[uiPlot] == -1)
+		{
+			continue;
+		}
+		CvPlot* pPlot = GC.getMap().plotByIndex(aiPlots[uiPlot]);
+		if(pPlot == NULL || pPlot->isCity())
+		{
+			continue;
+		}
+		ResourceTypes eResource = pPlot->getResourceType(pPlayer->getTeam());
+		CvResourceInfo* pkResource = (eResource != NO_RESOURCE) ? GC.getResourceInfo(eResource) : NULL;
+		if(pkResource == NULL || pkResource->getResourceUsage() != RESOURCEUSAGE_LUXURY)
+		{
+			continue;
+		}
+		ImprovementTypes eCurrent = pPlot->getImprovementType();
+		if(eCurrent != NO_IMPROVEMENT && GC.getImprovementInfo(eCurrent) && GC.getImprovementInfo(eCurrent)->IsImprovementResourceTrade(eResource))
+		{
+			continue;
+		}
+		for(int iBuild = 0; iBuild < GC.getNumBuildInfos(); iBuild++)
+		{
+			CvBuildInfo* pkBuild = GC.getBuildInfo((BuildTypes)iBuild);
+			if(pkBuild == NULL || pkBuild->getImprovement() == NO_IMPROVEMENT)
+			{
+				continue;
+			}
+			CvImprovementEntry* pkImprovement = GC.getImprovementInfo((ImprovementTypes)pkBuild->getImprovement());
+			if(pkImprovement == NULL || pkImprovement->IsCreatedByGreatPerson() || !pkImprovement->IsImprovementResourceTrade(eResource))
+			{
+				continue;
+			}
+			int iMissing = 0;
+			int iMissingTech = NO_TECH;
+			int iBuildTech = pkBuild->getTechPrereq();
+			if(iBuildTech != NO_TECH && !pTeamTechs->HasTech((TechTypes)iBuildTech))
+			{
+				iMissing++;
+				iMissingTech = iBuildTech;
+			}
+			FeatureTypes eFeature = pPlot->getFeatureType();
+			if(eFeature != NO_FEATURE && pkBuild->isFeatureRemove(eFeature))
+			{
+				int iFeatureTech = pkBuild->getFeatureTech(eFeature);
+				if(iFeatureTech != NO_TECH && iFeatureTech != iMissingTech && !pTeamTechs->HasTech((TechTypes)iFeatureTech))
+				{
+					iMissing++;
+					iMissingTech = iFeatureTech;
+				}
+			}
+			if(iMissing == 1 && std::find(aiTechs.begin(), aiTechs.end(), iMissingTech) == aiTechs.end())
+			{
+				aiTechs.push_back(iMissingTech);
+			}
+		}
+	}
+	return aiTechs;
+}
+
 TechTypes CvTechAI::ChooseNextTech(CvPlayer *pPlayer, bool bFreeTech)
 {
 	RandomNumberDelegate fcn;
@@ -168,6 +236,44 @@ TechTypes CvTechAI::ChooseNextTech(CvPlayer *pPlayer, bool bFreeTech)
 			else
 			{
 				m_ResearchableTechs.push_back(iTechLoop, m_TechAIWeights.GetWeight(iTechLoop));
+			}
+		}
+	}
+
+	if(!pPlayer->isHuman() && !pPlayer->isMinorCiv() && !pPlayer->isBarbarian())
+	{
+		for(int iI = 0; iI < m_ResearchableTechs.size(); iI++)
+		{
+			TechTypes eTech = (TechTypes)m_ResearchableTechs.GetElement(iI);
+			bool bUnlocksGrowth = false;
+			for(int iBldg = 0; iBldg < GC.getNumBuildingInfos() && !bUnlocksGrowth; iBldg++)
+			{
+				CvBuildingEntry* pkBuildingInfo = GC.getBuildingInfo((BuildingTypes)iBldg);
+				if(pkBuildingInfo == NULL || pkBuildingInfo->GetPrereqAndTech() != eTech)
+				{
+					continue;
+				}
+				const CvBuildingClassInfo& kClass = pkBuildingInfo->GetBuildingClassInfo();
+				if(isWorldWonderClass(kClass) || isTeamWonderClass(kClass) || isNationalWonderClass(kClass))
+				{
+					continue;
+				}
+				bUnlocksGrowth = pkBuildingInfo->GetYieldChange(YIELD_FOOD) > 0 || pkBuildingInfo->GetYieldModifier(YIELD_FOOD) > 0 || pkBuildingInfo->GetFoodKept() > 0 ||
+					pkBuildingInfo->GetSeaPlotYieldChange(YIELD_FOOD) > 0 || pkBuildingInfo->GetYieldChange(YIELD_SCIENCE) > 0 ||
+					pkBuildingInfo->GetYieldChangePerPop(YIELD_SCIENCE) > 0 || pkBuildingInfo->GetYieldModifier(YIELD_SCIENCE) > 0;
+			}
+			if(bUnlocksGrowth)
+			{
+				m_ResearchableTechs.SetWeight(iI, m_ResearchableTechs.GetWeight(iI) * 2);
+			}
+		}
+
+		std::vector<int> aiLuxuryTechs = HumanizedLuxuryImprovementTechs(pPlayer);
+		for(int iI = 0; iI < m_ResearchableTechs.size(); iI++)
+		{
+			if(std::find(aiLuxuryTechs.begin(), aiLuxuryTechs.end(), m_ResearchableTechs.GetElement(iI)) != aiLuxuryTechs.end())
+			{
+				m_ResearchableTechs.SetWeight(iI, m_ResearchableTechs.GetWeight(iI) * 3);
 			}
 		}
 	}

@@ -150,4 +150,10 @@
 			<MisjudgePercent>0</MisjudgePercent>
 		</Row>
 	</HandicapInfo_HumanizedAI>
+	<Defines>
+		<Update>
+			<Where Name="AI_CITYSTRATEGY_WANT_TILE_IMPROVERS_MINIMUM_SIZE"/>
+			<Set Value="1"/>
+		</Update>
+	</Defines>
 </GameData>

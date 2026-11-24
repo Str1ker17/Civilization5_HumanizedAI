@@ -614,6 +614,31 @@ static double citystrategyround(double x)
 	return (x >= 0) ? floor(x + .5) : ceil(x - .5);
 };
 
+static int HumanizedFoodRouteBuildingValue(const CvCity* pCity, CvBuildingEntry* pkBuildingInfo)
+{
+	CvPlayer& kOwner = GET_PLAYER(pCity->getOwner());
+	int iEach = pkBuildingInfo->GetYieldForEachBuildingInEmpire(YIELD_FOOD);
+	if(iEach > 0)
+	{
+		int iMax = pkBuildingInfo->GetMaxYieldForEachBuildingInEmpire(YIELD_FOOD);
+		return iMax > 0 ? iMax : iEach * kOwner.getNumCities();
+	}
+	int iFood = std::max(0, pkBuildingInfo->GetYieldChange(YIELD_FOOD));
+	for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+	{
+		CvPlot* pPlot = pCity->GetCityCitizens()->GetCityPlotFromIndex(iI);
+		if(pPlot && pPlot->getOwner() == pCity->getOwner())
+		{
+			ResourceTypes eResource = pPlot->getResourceType(kOwner.getTeam());
+			if(eResource != NO_RESOURCE && pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_FOOD) > 0)
+			{
+				iFood += pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_FOOD);
+			}
+		}
+	}
+	return iFood;
+}
+
 /// Determines if the yield is below a sustainable amount
 bool CvCityStrategyAI::IsYieldDeficient(YieldTypes eYieldType)
 {
@@ -893,6 +918,32 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			}
 #endif
 
+			if(iTempWeight > 0 && pkBuildingInfo->AllowsFoodTradeRoutes() && !kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
+			{
+				int iFoodValue = HumanizedFoodRouteBuildingValue(GetCity(), pkBuildingInfo);
+				bool bBestFood = true;
+				for(int iOther = 0; iOther < GC.GetGameBuildings()->GetNumBuildings(); iOther++)
+				{
+					CvBuildingEntry* pkOther = GC.getBuildingInfo((BuildingTypes)iOther);
+					if(iOther != iBldgLoop && pkOther && pkOther->AllowsFoodTradeRoutes() && m_pCity->canConstruct((BuildingTypes)iOther))
+					{
+						int iOtherValue = HumanizedFoodRouteBuildingValue(GetCity(), pkOther);
+						if(iOtherValue > iFoodValue || (iOtherValue == iFoodValue && pkOther->GetYieldForEachBuildingInEmpire(YIELD_FOOD) <= 0))
+						{
+							bBestFood = false;
+						}
+					}
+				}
+				if(!bBestFood)
+				{
+					iTempWeight = 0;
+				}
+				else if(kPlayer.GetExcessHappiness() >= GC.getUNHAPPINESS_PER_CITY() + 1)
+				{
+					iTempWeight *= 3;
+				}
+			}
+
 			// If the City is a puppet, it avoids Wonders (because the human can't change it if he wants to build it somewhere else!)
 			if(GetCity()->IsPuppet())
 			{
@@ -934,6 +985,13 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 	// If the City is a puppet, it avoids training Units and projects
 	if(!GetCity()->IsPuppet())
 	{
+		bool bArmyTooExpensive = false;
+		if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && kPlayer.GetMilitaryAI()->GetNumberCivsAtWarWith() == 0)
+		{
+			int iRate = kPlayer.calculateGoldRate();
+			bArmyTooExpensive = iRate < 0 && kPlayer.GetTreasury()->GetGold() + 10 * iRate < 0;
+		}
+
 		// Loop through adding the available units
 		for(iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
 		{
@@ -963,7 +1021,16 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 						{
 							iTempWeight = 0;
 						}
+						else if(!kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && kPlayer.getNumCities() < 5 && !kPlayer.IsEmpireUnhappy())
+						{
+							iTempWeight *= 2;
+						}
 					}
+				}
+
+				if(bArmyTooExpensive && pkUnitEntry && (pkUnitEntry->GetCombat() > 0 || pkUnitEntry->GetRangedCombat() > 0) && pkUnitEntry->GetDefaultUnitAIType() != UNITAI_EXPLORE)
+				{
+					iTempWeight /= 3;
 				}
 
 				// sanity check for building ships on small inland seas (not lakes)
@@ -2114,11 +2181,14 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_NeedTileImprovers(AICityStrategyT
 	else
 	{
 		int iNumCities = max(1, (iCurrentNumCities * 3) / 4);
-		if(iNumWorkers >= iNumCities)
+		bool bBacklog = !kPlayer.isHuman() && kPlayer.GetWorkedUnimprovedBacklog() > 2 * iNumWorkers + 1;
+		if(iNumWorkers >= iNumCities && !bBacklog)
 			return false;
 		// If we're losing at war, return false
 		if(kPlayer.GetDiplomacyAI()->GetStateAllWars() == STATE_ALL_WARS_LOSING)
 			return false;
+		if(bBacklog)
+			return true;
 	}
 
 	// If we're under attack from Barbs and have 1 or fewer Cities and no credible defense then training more Workers will only hurt us
@@ -2509,8 +2579,23 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_CapitalNeedSettler(AICityStrategy
 			int iNumCities = kPlayer.getNumCities();
 			int iSettlersOnMapOrBuild = kPlayer.GetNumUnitsWithUnitAI(UNITAI_SETTLE, true);
 			int iCitiesPlusSettlers = iNumCities + iSettlersOnMapOrBuild;
+			int iDesiredCities = max(3, EconomicAIHelpers::GetDesiredCityCount(&kPlayer));
 
-			if((iCitiesPlusSettlers) < 3)
+			if(iCitiesPlusSettlers >= 3)
+			{
+				int iNewCityUnhappiness = GC.getUNHAPPINESS_PER_CITY() + 1;
+				if(kPlayer.GetExcessHappiness() < iNewCityUnhappiness * (iSettlersOnMapOrBuild + 1))
+				{
+					return false;
+				}
+				int iBestArea, iSecondBestArea;
+				if(kPlayer.GetBestSettleAreas(kPlayer.GetEconomicAI()->GetMinimumSettleFertility(), iBestArea, iSecondBestArea) == 0)
+				{
+					return false;
+				}
+			}
+
+			if(iCitiesPlusSettlers < iDesiredCities)
 			{
 
 				AICityStrategyTypes eUnderThreat = (AICityStrategyTypes) GC.getInfoTypeForString("AICITYSTRATEGY_CAPITAL_UNDER_THREAT");
@@ -2536,7 +2621,7 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_CapitalNeedSettler(AICityStrategy
 				int iGameTurn = GC.getGame().getGameTurn();
 				if((iCitiesPlusSettlers == 1 && (iGameTurn * 4) > iWeightThreshold) ||
 					(iCitiesPlusSettlers == 2 && (iGameTurn * 2) > iWeightThreshold) || 
-					(iCitiesPlusSettlers == 3 && iGameTurn > iWeightThreshold) )
+					(iCitiesPlusSettlers >= 3 && iGameTurn > iWeightThreshold) )
 				{
 					return true;
 				}

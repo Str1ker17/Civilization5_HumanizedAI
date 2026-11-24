@@ -292,6 +292,10 @@ void CvBuilderTaskingAI::ConnectCitiesToCapital(CvCity* pPlayerCapital, CvCity* 
 	if(!bMajorMinorConnection)
 	{
 		iGoldForRoute = m_pPlayer->GetTreasury()->GetCityConnectionRouteGoldTimes100(pTargetCity) / 100;
+		if(!m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv())
+		{
+			iGoldForRoute += (4 * GC.getTRADE_ROUTE_CITY_POP_GOLD_MULTIPLIER()) / 100;
+		}
 	}
 
 	CvRouteInfo* pRouteInfo = GC.getRouteInfo(eRoute);
@@ -2206,6 +2210,10 @@ int CvBuilderTaskingAI::ScorePlot()
 	int iScore = 0;
 	bool bAnyNegativeMultiplier = false;
 	YieldTypes eFocusYield = pCityStrategy->GetFocusYield();
+	if(eFocusYield != YIELD_FOOD && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian() && pCity->isCapital() && pCity->foodDifference() < 4)
+	{
+		eFocusYield = YIELD_FOOD;
+	}
 	for(uint ui = 0; ui < NUM_YIELD_TYPES; ui++)
 	{
 		int iMultiplier = pCityStrategy->GetYieldDeltaTimes100((YieldTypes)ui);
@@ -2250,6 +2258,11 @@ int CvBuilderTaskingAI::ScorePlot()
 	if (pCity->isCapital()) // this is our capital and needs emphasis
 	{
 		iScore *= 8;
+	}
+
+	if(!m_pPlayer->isHuman() && m_pTargetPlot->isBeingWorked())
+	{
+		iScore *= 3;
 	}
 	else if (pCity->IsOriginalCapital()) // this was a particularly good city and needs a little emphasis
 	{

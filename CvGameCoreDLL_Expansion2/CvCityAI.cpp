@@ -80,6 +80,27 @@ void CvCityAI::AI_doTurn()
 	}
 }
 
+static bool HumanizedWonderCityReady(CvCity* pCity, CvPlayer& kOwner)
+{
+	if(kOwner.isHuman() || kOwner.isMinorCiv() || GC.getGame().getElapsedGameTurns() >= 100)
+	{
+		return true;
+	}
+	if(kOwner.GetNumUnitsWithUnitAI(UNITAI_WORKER, true, false) < kOwner.getNumCities())
+	{
+		return false;
+	}
+	for(int iI = 0; iI < GC.getNumBuildingInfos(); iI++)
+	{
+		CvBuildingEntry* pkBuildingInfo = GC.getBuildingInfo((BuildingTypes)iI);
+		if(pkBuildingInfo && pCity->GetCityBuildings()->GetNumBuilding((BuildingTypes)iI) > 0 && pkBuildingInfo->AllowsFoodTradeRoutes())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void CvCityAI::AI_chooseProduction(bool bInterruptWonders)
 {
 	VALIDATE_OBJECT
@@ -116,7 +137,7 @@ void CvCityAI::AI_chooseProduction(bool bInterruptWonders)
 			int iFlavorWonder = kOwner.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_WONDER"));
 			int iFlavorGP = kOwner.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_GREAT_PEOPLE"));
 			int iFlavor = (iFlavorWonder > iFlavorGP ) ? iFlavorWonder : iFlavorGP;
-			if (GC.getGame().getJonRandNum(11, "Random roll for whether to continue building wonders") <= iFlavor)
+			if (GC.getGame().getJonRandNum(11, "Random roll for whether to continue building wonders") <= iFlavor && HumanizedWonderCityReady(this, kOwner))
 				bBuildWonder = true;
 		}
 	}

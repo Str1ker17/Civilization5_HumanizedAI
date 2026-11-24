@@ -980,11 +980,12 @@ void CvPlayerTechs::SetLocalePriorities()
 		m_piLocaleTechPriority[iI] = 1;
 		m_peLocaleTechResources[iI] = NO_RESOURCE;
 	}
+	std::vector<ResourceTypes> aeCountedLuxuries;
 
 	// Loop through all our cities
 	for(pCity = m_pPlayer->firstCity(&iLoop); pCity != NULL; pCity = m_pPlayer->nextCity(&iLoop))
 	{
-		// Look at all Tiles this City could potentially work to see if there are any non-water resources that could be improved
+		// Look at all Tiles this City could potentially work to see if there are any non-water resources or water luxuries that could be improved
 		for(int iPlotLoop = 0; iPlotLoop < NUM_CITY_PLOTS; iPlotLoop++)
 		{
 			CvPlot* pLoopPlot = plotCity(pCity->getX(), pCity->getY(), iPlotLoop);
@@ -995,7 +996,8 @@ void CvPlayerTechs::SetLocalePriorities()
 
 				if(pLoopPlot->getOwner() == pCity->getOwner() || (iDistance <= 2 && pLoopPlot->getOwner() == NO_PLAYER))
 				{
-					if(!pLoopPlot->isWater())
+					ResourceTypes ePlotResource = pLoopPlot->getResourceType(m_pPlayer->getTeam());
+					if(!pLoopPlot->isWater() || (ePlotResource != NO_RESOURCE && GC.getResourceInfo(ePlotResource)->getResourceUsage() == RESOURCEUSAGE_LUXURY))
 					{
 						ResourceTypes eResource = pLoopPlot->getResourceType(m_pPlayer->getTeam());
 						if(eResource == NO_RESOURCE)
@@ -1051,6 +1053,13 @@ void CvPlayerTechs::SetLocalePriorities()
 							{
 								m_piLocaleTechPriority[iTech]++;
 								m_peLocaleTechResources[iTech] = eResource;
+								CvResourceInfo* pkResourceInfo = GC.getResourceInfo(eResource);
+								if(pkResourceInfo && pkResourceInfo->getResourceUsage() == RESOURCEUSAGE_LUXURY && m_pPlayer->getNumResourceAvailable(eResource, true) == 0 &&
+									std::find(aeCountedLuxuries.begin(), aeCountedLuxuries.end(), eResource) == aeCountedLuxuries.end())
+								{
+									aeCountedLuxuries.push_back(eResource);
+									m_piLocaleTechPriority[iTech] += pkResourceInfo->getHappiness();
+								}
 							}
 						}
 					}

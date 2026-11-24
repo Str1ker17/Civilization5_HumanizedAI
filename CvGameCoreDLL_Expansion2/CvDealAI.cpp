@@ -3713,7 +3713,8 @@ bool CvDealAI::IsMakeOfferForLuxuryResource(PlayerTypes eOtherPlayer, CvDeal* pD
 		}
 
 		// Any extras?
-		if(GET_PLAYER(eOtherPlayer).getNumResourceAvailable(eResource, false) > 1)
+		if(GET_PLAYER(eOtherPlayer).getNumResourceAvailable(eResource, false) > 1 &&
+			pDeal->IsPossibleToTradeItem(eOtherPlayer, GetPlayer()->GetID(), TRADE_ITEM_RESOURCES, eResource, 1))
 		{
 			eLuxuryFromThem = eResource;
 			break;
@@ -3723,12 +3724,6 @@ bool CvDealAI::IsMakeOfferForLuxuryResource(PlayerTypes eOtherPlayer, CvDeal* pD
 	// Extra Luxury found!
 	if(eLuxuryFromThem != NO_RESOURCE)
 	{
-		// Can we actually complete this deal?
-		if(!pDeal->IsPossibleToTradeItem(eOtherPlayer, GetPlayer()->GetID(), TRADE_ITEM_RESOURCES, eLuxuryFromThem, 1))
-		{
-			return false;
-		}
-
 		// Seed the deal with the item we want
 		pDeal->AddResourceTrade(eOtherPlayer, eLuxuryFromThem, 1, GC.getGame().GetDealDuration());
 

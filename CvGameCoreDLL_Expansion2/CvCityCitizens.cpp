@@ -285,7 +285,7 @@ void CvCityCitizens::DoTurn()
 			SetForcedAvoidGrowth(false);
 			//}
 			iExcessFoodTimes100 = m_pCity->getYieldRateTimes100(YIELD_FOOD, false) - (m_pCity->foodConsumption() * 100);
-			if(iExcessFoodTimes100 < 200)
+			if(iExcessFoodTimes100 < 100 * max(4, m_pCity->getPopulation() / 2))
 			{
 				SetFocusType(CITY_AI_FOCUS_TYPE_PROD_GROWTH);
 				//SetNoAutoAssignSpecialists(true);
