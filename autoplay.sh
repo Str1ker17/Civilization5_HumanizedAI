@@ -11,6 +11,11 @@ if [ -n "$SLOT" ]; then
 	fi
 fi
 PFX=${PFX:-"$HOME/snap/steam/common/.local/share/Steam/steamapps/compatdata/8930/pfx"}
+MAINGAME="$HOME/snap/steam/common/.local/share/Steam/steamapps/common/Sid Meier's Civilization V"
+GAMEDIR=${GAMEDIR:-}
+if [ -n "$SLOT" ] && [ -z "$GAMEDIR" ] && [ -d "$HOME/snap/steam/common/civ5-par/$SLOT/game" ]; then
+	GAMEDIR=$HOME/snap/steam/common/civ5-par/$SLOT/game
+fi
 LAUNCHER=$HOME/snap/steam/common/civ5-direct-launch.sh
 MYGAMES="$PFX/drive_c/users/steamuser/Documents/My Games/Sid Meier's Civilization 5"
 CONFIG=$MYGAMES/config.ini
@@ -229,6 +234,7 @@ prepare() {
 	echo "xvfb=$XVFB display=$GAME_DISPLAY env=$XVFB_ENV supervise=$SUPERVISE coach=$COACH slot=$SLOT"
 	echo "git=$(git -C "$ROOT" describe --always --dirty)"
 	echo "dll=$(md5sum "$ROOT/CvGameCoreDLL_Expansion2/BuildOutput/VS2013_ModWin32/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
+	echo "game=${GAMEDIR:-$MAINGAME} gamedll=$(md5sum < "${GAMEDIR:-$MAINGAME}/Assets/DLC/Tournament Mod V12.3a + HumanizedAI/CvGameCore_Expansion2.dll" | cut -d' ' -f1)"
 } > "$OUT/run.txt"
 
 if [ -n "$SLOT" ] && ! cmp -s "$ROOT/steam-direct-launch.sh" "$LAUNCHER"; then
@@ -240,6 +246,9 @@ launch() {
 	prepare
 	if [ -n "$SLOT" ]; then
 		set -- "${PFX%/pfx}" "$XVFB_DISPLAY"
+		if [ -n "$GAMEDIR" ]; then
+			set -- "$@" "CIV5_GAME=$GAMEDIR"
+		fi
 		for kv in $XVFB_ENV; do
 			set -- "$@" "$kv"
 		done

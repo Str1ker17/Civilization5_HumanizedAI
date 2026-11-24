@@ -1,7 +1,6 @@
 #!/bin/sh
 STEAM=$HOME/.local/share/Steam
 APPS=$STEAM/steamapps
-GAME="$APPS/common/Sid Meier's Civilization V"
 PROTON="$APPS/common/Proton 11.0"
 SLR="$APPS/common/SteamLinuxRuntime_4"
 
@@ -11,6 +10,8 @@ shift 2
 for kv in "$@"; do
 	export "${kv?}"
 done
+GAME=${CIV5_GAME:-"$APPS/common/Sid Meier's Civilization V"}
+unset CIV5_GAME
 unset WAYLAND_DISPLAY
 
 export STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM"
