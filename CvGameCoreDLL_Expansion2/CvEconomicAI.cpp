@@ -1928,6 +1928,62 @@ void CvEconomicAI::DoPlotPurchases()
 		return;
 	}
 
+	if(!m_pPlayer->isHuman() && !m_pPlayer->isBarbarian())
+	{
+		int iReserve = 50 + 25 * (int)m_pPlayer->GetCurrentEra();
+		int iRange = GC.getMAXIMUM_BUY_PLOT_DISTANCE();
+		int iLuxCost = MAX_INT;
+		CvCity* pLuxCity = NULL;
+		CvPlot* pLuxPlot = NULL;
+		for(pLoopCity = m_pPlayer->firstCity(&iLoop); pLoopCity != NULL; pLoopCity = m_pPlayer->nextCity(&iLoop))
+		{
+			if(!pLoopCity->CanBuyAnyPlot())
+			{
+				continue;
+			}
+			for(int iDX = -iRange; iDX <= iRange; iDX++)
+			{
+				for(int iDY = -iRange; iDY <= iRange; iDY++)
+				{
+					CvPlot* pLoopPlot = plotXYWithRangeCheck(pLoopCity->getX(), pLoopCity->getY(), iDX, iDY, iRange);
+					if(pLoopPlot == NULL || !pLoopCity->CanBuyPlot(pLoopPlot->getX(), pLoopPlot->getY(), true))
+					{
+						continue;
+					}
+					ResourceTypes eResource = pLoopPlot->getResourceType(m_pPlayer->getTeam());
+					CvResourceInfo* pkResource = (eResource != NO_RESOURCE) ? GC.getResourceInfo(eResource) : NULL;
+					if(pkResource == NULL || pkResource->getResourceUsage() != RESOURCEUSAGE_LUXURY || m_pPlayer->getNumResourceTotal(eResource) > 0)
+					{
+						continue;
+					}
+					int iCost = pLoopCity->GetBuyPlotCost(pLoopPlot->getX(), pLoopPlot->getY());
+					if(iCost < iLuxCost)
+					{
+						iLuxCost = iCost;
+						pLuxCity = pLoopCity;
+						pLuxPlot = pLoopPlot;
+					}
+				}
+			}
+		}
+		if(pLuxPlot != NULL && m_pPlayer->GetTreasury()->GetGold() - iLuxCost >= iReserve)
+		{
+			if(GC.getLogging() && GC.getAILogging())
+			{
+				FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
+				if(pLog)
+				{
+					CvString strLog;
+					strLog.Format("%03d, %s, buy luxury plot, %s, %s, cost=%d, gold=%d, reserve=%d", GC.getGame().getElapsedGameTurns(), m_pPlayer->getCivilizationShortDescription(),
+						pLuxCity->getName().GetCString(), GC.getResourceInfo(pLuxPlot->getResourceType(m_pPlayer->getTeam()))->GetType(), iLuxCost, m_pPlayer->GetTreasury()->GetGold(), iReserve);
+					pLog->Msg(strLog);
+				}
+			}
+			pLuxCity->BuyPlot(pLuxPlot->getX(), pLuxPlot->getY());
+			return;
+		}
+	}
+
 	// No plot buying when at war
 	MilitaryAIStrategyTypes eStrategyAtWar = (MilitaryAIStrategyTypes) GC.getInfoTypeForString("MILITARYAISTRATEGY_AT_WAR");
 	if(eStrategyAtWar != NO_MILITARYAISTRATEGY)
