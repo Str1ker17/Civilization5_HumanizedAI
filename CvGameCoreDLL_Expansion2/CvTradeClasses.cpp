@@ -9,6 +9,7 @@
 #include "CvGameCoreDLLUtil.h" 
 #include "ICvDLLUserInterface.h" 
 #include "CvGameCoreUtils.h" 
+#include "CvInternalGameCoreUtils.h"
 #include "CvInfosSerializationHelper.h" 
 #include "CvCitySpecializationAI.h"
 
@@ -4467,6 +4468,65 @@ struct SortTR
 	}
 };
 
+struct HumanizedSortTR
+{
+	bool operator()(TRSortElement const& a, TRSortElement const& b) const
+	{
+		return a.m_iScore > b.m_iScore;
+	}
+};
+
+static int HumanizedGrowthRoom(CvCity* pCity)
+{
+	if(GET_PLAYER(pCity->getOwner()).GetExcessHappiness() < 1)
+	{
+		return 0;
+	}
+	int iRoom = 0;
+	CvCityCitizens* pCitizens = pCity->GetCityCitizens();
+	for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+	{
+		CvPlot* pLoopPlot = pCitizens->GetCityPlotFromIndex(iI);
+		if(pLoopPlot == NULL || pLoopPlot->isCity() || pLoopPlot->getOwner() != pCity->getOwner() || pCitizens->IsWorkingPlot(pLoopPlot) || !pCitizens->IsCanWork(pLoopPlot))
+		{
+			continue;
+		}
+		int iFood = pLoopPlot->getYield(YIELD_FOOD);
+		if(iFood >= 2 || iFood + pLoopPlot->getYield(YIELD_PRODUCTION) + pLoopPlot->getYield(YIELD_GOLD) >= 3)
+		{
+			iRoom++;
+		}
+	}
+	return iRoom;
+}
+
+static int HumanizedBuildingTurns(CvCity* pCity)
+{
+	int iNeeded = 0;
+	int iCount = 0;
+	for(int iI = 0; iI < GC.getNumBuildingInfos(); iI++)
+	{
+		BuildingTypes eBuilding = (BuildingTypes)iI;
+		CvBuildingEntry* pkBuildingInfo = GC.getBuildingInfo(eBuilding);
+		if(pkBuildingInfo == NULL)
+		{
+			continue;
+		}
+		const CvBuildingClassInfo& kClass = pkBuildingInfo->GetBuildingClassInfo();
+		if(isWorldWonderClass(kClass) || isTeamWonderClass(kClass) || isNationalWonderClass(kClass) || !pCity->canConstruct(eBuilding))
+		{
+			continue;
+		}
+		iNeeded += pCity->getProductionNeeded(eBuilding);
+		iCount++;
+	}
+	if(iCount < 3)
+	{
+		return 0;
+	}
+	return iNeeded / max(1, pCity->getYieldRate(YIELD_PRODUCTION, false));
+}
+
 /// Prioritize TRs
 void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 {	
@@ -4476,6 +4536,79 @@ void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 	// if the list is empty, bail
 	if (aTradeConnectionList.size() == 0)
 	{
+		return;
+	}
+
+	if(!m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && !m_pPlayer->isBarbarian())
+	{
+		std::vector<int> aiCityID;
+		std::vector<int> aiGrowthRoom;
+		std::vector<int> aiBuildingTurns;
+		std::vector<int> aiRoutesIn;
+		std::vector<TRSortElement> aInternalTR;
+		std::vector<TRSortElement> aInternationalTR;
+		for(uint ui = 0; ui < aTradeConnectionList.size(); ui++)
+		{
+			const TradeConnection& kConnection = aTradeConnectionList[ui];
+			TRSortElement kElement;
+			kElement.m_kTradeConnection = kConnection;
+			if(kConnection.m_eConnectionType == TRADE_CONNECTION_INTERNATIONAL)
+			{
+				kElement.m_iScore = ScoreInternationalTR(kConnection);
+				if(kElement.m_iScore > 0)
+				{
+					aInternationalTR.push_back(kElement);
+				}
+				continue;
+			}
+			CvPlot* pDestPlot = GC.getMap().plot(kConnection.m_iDestX, kConnection.m_iDestY);
+			CvCity* pDestCity = pDestPlot ? pDestPlot->getPlotCity() : NULL;
+			if(pDestCity == NULL)
+			{
+				continue;
+			}
+			uint uiCity = 0;
+			while(uiCity < aiCityID.size() && aiCityID[uiCity] != pDestCity->GetID())
+			{
+				uiCity++;
+			}
+			if(uiCity == aiCityID.size())
+			{
+				aiCityID.push_back(pDestCity->GetID());
+				aiGrowthRoom.push_back(HumanizedGrowthRoom(pDestCity));
+				aiBuildingTurns.push_back(HumanizedBuildingTurns(pDestCity));
+				aiRoutesIn.push_back(GC.getGame().GetGameTrade()->GetNumTimesDestinationCity(pDestCity, false));
+			}
+			int iBase = (kConnection.m_eConnectionType == TRADE_CONNECTION_FOOD) ? ScoreFoodTR(kConnection, pDestCity) : ScoreProductionTR(kConnection, std::vector<CvCity*>(1, pDestCity));
+			if(iBase <= 0)
+			{
+				continue;
+			}
+			if(kConnection.m_eConnectionType == TRADE_CONNECTION_FOOD && aiGrowthRoom[uiCity] > 0)
+			{
+				kElement.m_iScore = 1000 + 50 * min(aiGrowthRoom[uiCity], 8) - 100 * aiRoutesIn[uiCity] + iBase;
+			}
+			else if(kConnection.m_eConnectionType == TRADE_CONNECTION_PRODUCTION && aiGrowthRoom[uiCity] == 0 && aiBuildingTurns[uiCity] >= 30)
+			{
+				kElement.m_iScore = 1000 + min(aiBuildingTurns[uiCity], 400) - 100 * aiRoutesIn[uiCity] + iBase;
+			}
+			else
+			{
+				continue;
+			}
+			aInternalTR.push_back(kElement);
+		}
+		std::stable_sort(aInternalTR.begin(), aInternalTR.end(), HumanizedSortTR());
+		std::stable_sort(aInternationalTR.begin(), aInternationalTR.end(), HumanizedSortTR());
+		aTradeConnectionList.clear();
+		for(uint ui = 0; ui < aInternalTR.size(); ui++)
+		{
+			aTradeConnectionList.push_back(aInternalTR[ui].m_kTradeConnection);
+		}
+		for(uint ui = 0; ui < aInternationalTR.size(); ui++)
+		{
+			aTradeConnectionList.push_back(aInternationalTR[ui].m_kTradeConnection);
+		}
 		return;
 	}
 
