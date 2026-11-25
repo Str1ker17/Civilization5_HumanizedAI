@@ -2272,7 +2272,7 @@ int CvBuilderTaskingAI::ScorePlot()
 
 	if (pCity->isCapital()) // this is our capital and needs emphasis
 	{
-		iScore *= 8;
+		iScore *= (m_pPlayer->isHuman() || m_pPlayer->isMinorCiv()) ? 8 : 2;
 	}
 
 	if(!m_pPlayer->isHuman() && m_pTargetPlot->isBeingWorked())
