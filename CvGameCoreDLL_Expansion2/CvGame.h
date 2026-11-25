@@ -333,6 +333,7 @@ public:
 
 	CvHandicapInfo& getHandicapInfo() const;
 	int GetAIBehaviorHandicapID() const;
+	bool HumanizedAnyLivingHuman() const;
 	HandicapTypes getHandicapType() const;
 	void setHandicapType(HandicapTypes eHandicap);
 

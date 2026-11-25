@@ -5791,6 +5791,11 @@ void CvPlayer::doTurnPostDiplomacy()
 		{
 			GetMinorCivAI()->DoTurn();
 		}
+#else
+		if(isMinorCiv() && !kGame.HumanizedAnyLivingHuman())
+		{
+			GetMinorCivAI()->DoTurn();
+		}
 #endif
 	}
 

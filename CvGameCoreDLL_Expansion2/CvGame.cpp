@@ -6180,6 +6180,19 @@ int CvGame::GetAIBehaviorHandicapID() const
 	return GC.getInfoTypeForString("HANDICAP_PRINCE");
 }
 
+bool CvGame::HumanizedAnyLivingHuman() const
+{
+	for(int iI = 0; iI < MAX_MAJOR_CIVS; iI++)
+	{
+		const CvPlayer& kPlayer = GET_PLAYER((PlayerTypes)iI);
+		if(kPlayer.isAlive() && kPlayer.isHuman())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 HandicapTypes CvGame::getHandicapType() const
 {
 	return m_eHandicap;
@@ -9143,7 +9156,7 @@ void CvGame::updateMoves()
 			CvPlayer& player = GET_PLAYER((PlayerTypes)iI);
 			if (player.isAlive())
 			{
-				if (player.isMinorCiv())
+				if (player.isMinorCiv() && HumanizedAnyLivingHuman())
 				{
 					player.GetMinorCivAI()->DoTurn();
 				}
