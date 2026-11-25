@@ -102,6 +102,20 @@ static bool HumanizedWonderCityReady(CvCity* pCity, CvPlayer& kOwner)
 	return false;
 }
 
+bool HumanizedWonderAllowed(CvCity* pCity, BuildingTypes eWonder)
+{
+	CvPlayer& kOwner = GET_PLAYER(pCity->getOwner());
+	if(kOwner.isHuman() || kOwner.isMinorCiv() || kOwner.isBarbarian())
+	{
+		return true;
+	}
+	if(!HumanizedWonderCityReady(pCity, kOwner) || pCity->getProductionTurnsLeft(eWonder, 0) > 15)
+	{
+		return false;
+	}
+	return kOwner.GetPlotDanger(*pCity->plot()) == 0;
+}
+
 void CvCityAI::AI_chooseProduction(bool bInterruptWonders)
 {
 	VALIDATE_OBJECT
@@ -140,7 +154,7 @@ void CvCityAI::AI_chooseProduction(bool bInterruptWonders)
 			int iFlavorWonder = kOwner.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_WONDER"));
 			int iFlavorGP = kOwner.GetGrandStrategyAI()->GetPersonalityAndGrandStrategy((FlavorTypes)GC.getInfoTypeForString("FLAVOR_GREAT_PEOPLE"));
 			int iFlavor = (iFlavorWonder > iFlavorGP ) ? iFlavorWonder : iFlavorGP;
-			if (GC.getGame().getJonRandNum(11, "Random roll for whether to continue building wonders") <= iFlavor && !bArmyShort && HumanizedWonderCityReady(this, kOwner))
+			if (GC.getGame().getJonRandNum(11, "Random roll for whether to continue building wonders") <= iFlavor && !bArmyShort && HumanizedWonderAllowed(this, eNextWonder))
 				bBuildWonder = true;
 		}
 	}

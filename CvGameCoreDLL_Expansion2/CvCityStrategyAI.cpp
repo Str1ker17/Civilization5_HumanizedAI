@@ -983,6 +983,11 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			}
 #endif
 
+			if(iTempWeight > 0 && isWorldWonderClass(pkBuildingInfo->GetBuildingClassInfo()) && !HumanizedWonderAllowed(GetCity(), eLoopBuilding))
+			{
+				iTempWeight = 0;
+			}
+
 			if(iTempWeight > 0 && pkBuildingInfo->AllowsFoodTradeRoutes() && !kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian())
 			{
 				int iFoodValue = HumanizedFoodRouteBuildingValue(GetCity(), pkBuildingInfo);

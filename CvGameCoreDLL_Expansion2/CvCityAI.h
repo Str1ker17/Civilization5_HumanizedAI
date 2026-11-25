@@ -50,4 +50,6 @@ protected:
 FDataStream& operator<<(FDataStream&, const CvCityAI&);
 FDataStream& operator>>(FDataStream&, CvCityAI&);
 
+bool HumanizedWonderAllowed(CvCity* pCity, BuildingTypes eWonder);
+
 #endif
