@@ -6180,6 +6180,32 @@ int CvGame::GetAIBehaviorHandicapID() const
 	return GC.getInfoTypeForString("HANDICAP_PRINCE");
 }
 
+bool CvGame::HumanizedIsQuestResource(PlayerTypes eMajor, ResourceTypes eResource) const
+{
+	for(int iI = MAX_MAJOR_CIVS; iI < MAX_CIV_PLAYERS; iI++)
+	{
+		CvPlayer& kMinor = GET_PLAYER((PlayerTypes)iI);
+		if(kMinor.isAlive() && kMinor.isMinorCiv() && kMinor.GetMinorCivAI()->IsActiveQuestForPlayer(eMajor, MINOR_CIV_QUEST_CONNECT_RESOURCE) && kMinor.GetMinorCivAI()->GetQuestData1(eMajor, MINOR_CIV_QUEST_CONNECT_RESOURCE) == (int)eResource)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool CvGame::HumanizedHasQuest(PlayerTypes eMajor, int iQuest) const
+{
+	for(int iI = MAX_MAJOR_CIVS; iI < MAX_CIV_PLAYERS; iI++)
+	{
+		CvPlayer& kMinor = GET_PLAYER((PlayerTypes)iI);
+		if(kMinor.isAlive() && kMinor.isMinorCiv() && kMinor.GetMinorCivAI()->IsActiveQuestForPlayer(eMajor, (MinorCivQuestTypes)iQuest))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool CvGame::HumanizedAnyLivingHuman() const
 {
 	for(int iI = 0; iI < MAX_MAJOR_CIVS; iI++)

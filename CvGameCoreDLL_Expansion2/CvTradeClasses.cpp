@@ -18,6 +18,7 @@
 #include "CvNotifications.h"
 #include "cvStopWatch.h"
 #include "CvCityManager.h"
+#include "CvMinorCivAI.h"
 
 #include "LintFree.h"
 
@@ -4547,6 +4548,7 @@ void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 		std::vector<int> aiRoutesIn;
 		std::vector<TRSortElement> aInternalTR;
 		std::vector<TRSortElement> aInternationalTR;
+		std::vector<TRSortElement> aQuestTR;
 		for(uint ui = 0; ui < aTradeConnectionList.size(); ui++)
 		{
 			const TradeConnection& kConnection = aTradeConnectionList[ui];
@@ -4557,7 +4559,15 @@ void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 				kElement.m_iScore = ScoreInternationalTR(kConnection);
 				if(kElement.m_iScore > 0)
 				{
-					aInternationalTR.push_back(kElement);
+					CvPlayer& kDest = GET_PLAYER(kConnection.m_eDestOwner);
+					if(kDest.isMinorCiv() && kDest.GetMinorCivAI()->IsActiveQuestForPlayer(m_pPlayer->GetID(), MINOR_CIV_QUEST_TRADE_ROUTE))
+					{
+						aQuestTR.push_back(kElement);
+					}
+					else
+					{
+						aInternationalTR.push_back(kElement);
+					}
 				}
 				continue;
 			}
@@ -4600,7 +4610,12 @@ void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 		}
 		std::stable_sort(aInternalTR.begin(), aInternalTR.end(), HumanizedSortTR());
 		std::stable_sort(aInternationalTR.begin(), aInternationalTR.end(), HumanizedSortTR());
+		std::stable_sort(aQuestTR.begin(), aQuestTR.end(), HumanizedSortTR());
 		aTradeConnectionList.clear();
+		for(uint ui = 0; ui < aQuestTR.size(); ui++)
+		{
+			aTradeConnectionList.push_back(aQuestTR[ui].m_kTradeConnection);
+		}
 		for(uint ui = 0; ui < aInternalTR.size(); ui++)
 		{
 			aTradeConnectionList.push_back(aInternalTR[ui].m_kTradeConnection);

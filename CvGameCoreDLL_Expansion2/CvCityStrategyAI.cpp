@@ -1210,6 +1210,42 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 	ReweightByCost();
 
+	if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && kPlayer.GetTrade()->GetNumTradeRoutesRemaining(false) > 0 && GC.getGame().HumanizedHasQuest(kPlayer.GetID(), MINOR_CIV_QUEST_TRADE_ROUTE))
+	{
+		int iBestOther = 0;
+		int iLowestCivilian = MAX_INT;
+		for(int iI = 0; iI < m_Buildables.size(); iI++)
+		{
+			const CvCityBuildable& kOther = m_Buildables.GetElement(iI);
+			if(kOther.m_eBuildableType == CITY_BUILDABLE_BUILDING || kOther.m_eBuildableType == CITY_BUILDABLE_PROCESS || kOther.m_eBuildableType == CITY_BUILDABLE_PROJECT)
+			{
+				iBestOther = std::max(iBestOther, m_Buildables.GetWeight(iI));
+			}
+			else if(kOther.m_eBuildableType == CITY_BUILDABLE_UNIT)
+			{
+				CvUnitEntry* pkOtherInfo = GC.getUnitInfo((UnitTypes)kOther.m_iIndex);
+				if(pkOtherInfo && (pkOtherInfo->GetDefaultUnitAIType() == UNITAI_SETTLE || pkOtherInfo->GetDefaultUnitAIType() == UNITAI_WORKER))
+				{
+					iLowestCivilian = std::min(iLowestCivilian, m_Buildables.GetWeight(iI));
+				}
+			}
+		}
+		iBestOther = std::min(iBestOther, iLowestCivilian - 2);
+		for(int iI = 0; iI < m_Buildables.size(); iI++)
+		{
+			const CvCityBuildable& kBuildable = m_Buildables.GetElement(iI);
+			if(kBuildable.m_eBuildableType != CITY_BUILDABLE_UNIT)
+			{
+				continue;
+			}
+			CvUnitEntry* pkUnitEntry = GC.getUnitInfo((UnitTypes)kBuildable.m_iIndex);
+			if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_TRADE_UNIT && m_Buildables.GetWeight(iI) <= iBestOther && kPlayer.GetTrade()->GetNumPotentialConnections(GetCity(), (DomainTypes)pkUnitEntry->GetDomainType()) > 0)
+			{
+				m_Buildables.SetWeight(iI, iBestOther + 1);
+			}
+		}
+	}
+
 	m_Buildables.SortItems();
 
 	LogPossibleBuilds();

@@ -733,6 +733,72 @@ static bool HumanizedBuyPlot(CvPlayer* pPlayer, bool bLuxury)
 	return true;
 }
 
+static bool HumanizedBuyQuestPlot(CvPlayer* pPlayer)
+{
+	if(pPlayer->isHuman() || pPlayer->isMinorCiv() || pPlayer->isBarbarian() || !GC.getGame().HumanizedHasQuest(pPlayer->GetID(), MINOR_CIV_QUEST_CONNECT_RESOURCE))
+	{
+		return false;
+	}
+	int iGold = pPlayer->GetTreasury()->GetGold();
+	int iReserve = 50 + 25 * (int)pPlayer->GetCurrentEra();
+	if(iGold <= iReserve)
+	{
+		return false;
+	}
+	int iRange = GC.getMAXIMUM_BUY_PLOT_DISTANCE();
+	int iBestCost = MAX_INT;
+	CvCity* pBestCity = NULL;
+	CvPlot* pBestPlot = NULL;
+	int iLoop = 0;
+	for(CvCity* pLoopCity = pPlayer->firstCity(&iLoop); pLoopCity != NULL; pLoopCity = pPlayer->nextCity(&iLoop))
+	{
+		if(!pLoopCity->CanBuyAnyPlot())
+		{
+			continue;
+		}
+		for(int iDX = -iRange; iDX <= iRange; iDX++)
+		{
+			for(int iDY = -iRange; iDY <= iRange; iDY++)
+			{
+				CvPlot* pLoopPlot = plotXYWithRangeCheck(pLoopCity->getX(), pLoopCity->getY(), iDX, iDY, iRange);
+				if(pLoopPlot == NULL || !pLoopCity->CanBuyPlot(pLoopPlot->getX(), pLoopPlot->getY(), true))
+				{
+					continue;
+				}
+				ResourceTypes eResource = pLoopPlot->getResourceType(pPlayer->getTeam());
+				if(eResource == NO_RESOURCE || pPlayer->getNumResourceTotal(eResource, true) > 0 || HumanizedOwnsResourcePlot(pPlayer, eResource) || !GC.getGame().HumanizedIsQuestResource(pPlayer->GetID(), eResource) || !HumanizedCanImproveLuxuryNow(pPlayer, pLoopPlot, eResource))
+				{
+					continue;
+				}
+				int iCost = pLoopCity->GetBuyPlotCost(pLoopPlot->getX(), pLoopPlot->getY());
+				if(iCost > 0 && iGold - iCost >= iReserve && iCost < iBestCost)
+				{
+					iBestCost = iCost;
+					pBestCity = pLoopCity;
+					pBestPlot = pLoopPlot;
+				}
+			}
+		}
+	}
+	if(pBestPlot == NULL)
+	{
+		return false;
+	}
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
+		if(pLog)
+		{
+			CvString strLog;
+			strLog.Format("%03d, %s, buy quest plot, %s, %s, cost=%d, gold=%d, reserve=%d", GC.getGame().getElapsedGameTurns(), pPlayer->getCivilizationShortDescription(),
+				pBestCity->getName().GetCString(), GC.getResourceInfo(pBestPlot->getResourceType(pPlayer->getTeam()))->GetType(), iBestCost, iGold, iReserve);
+			pLog->Msg(strLog);
+		}
+	}
+	pBestCity->BuyPlot(pBestPlot->getX(), pBestPlot->getY());
+	return true;
+}
+
 /// Called every turn to see what Strategies this player should using (or not)
 void CvEconomicAI::DoTurn()
 {
@@ -1017,7 +1083,7 @@ void CvEconomicAI::DoTurn()
 	if(!m_pPlayer->isHuman())
 	{
 		DoHurry();
-		if(!HumanizedBuyPlot(m_pPlayer, true) && !HumanizedBuyPlot(m_pPlayer, false))
+		if(!HumanizedBuyPlot(m_pPlayer, true) && !HumanizedBuyQuestPlot(m_pPlayer) && !HumanizedBuyPlot(m_pPlayer, false))
 		{
 			DoBuildingPurchases();
 		}

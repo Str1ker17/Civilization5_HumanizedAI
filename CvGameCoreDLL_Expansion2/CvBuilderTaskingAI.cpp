@@ -1025,6 +1025,11 @@ void CvBuilderTaskingAI::AddImprovingResourcesDirectives(CvUnit* pUnit, CvPlot* 
 			}
 		}
 
+		if(iWeight > 0 && !m_pPlayer->isHuman() && !m_pPlayer->isMinorCiv() && m_pPlayer->getNumResourceTotal(eResource, true) == 0 && GC.getGame().HumanizedIsQuestResource(m_pPlayer->GetID(), eResource))
+		{
+			iWeight = (iWeight > MAX_INT / 10) ? MAX_INT : iWeight * 10;
+		}
+
 		if(iWeight <= 0)
 		{
 			continue;

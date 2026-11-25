@@ -334,6 +334,8 @@ public:
 	CvHandicapInfo& getHandicapInfo() const;
 	int GetAIBehaviorHandicapID() const;
 	bool HumanizedAnyLivingHuman() const;
+	bool HumanizedIsQuestResource(PlayerTypes eMajor, ResourceTypes eResource) const;
+	bool HumanizedHasQuest(PlayerTypes eMajor, int iQuest) const;
 	HandicapTypes getHandicapType() const;
 	void setHandicapType(HandicapTypes eHandicap);
 
