@@ -535,6 +535,204 @@ void CvEconomicAI::SetTurnStrategyAdopted(EconomicAIStrategyTypes eStrategy, int
 
 // Do Turn & Strategy Trigger Functions beneath this line
 
+static bool HumanizedCanImproveLuxuryNow(CvPlayer* pPlayer, CvPlot* pPlot, ResourceTypes eResource)
+{
+	CvTeamTechs* pTeamTechs = GET_TEAM(pPlayer->getTeam()).GetTeamTechs();
+	for(int iBuild = 0; iBuild < GC.getNumBuildInfos(); iBuild++)
+	{
+		CvBuildInfo* pkBuild = GC.getBuildInfo((BuildTypes)iBuild);
+		if(pkBuild == NULL || pkBuild->getImprovement() == NO_IMPROVEMENT)
+		{
+			continue;
+		}
+		CvImprovementEntry* pkImprovement = GC.getImprovementInfo((ImprovementTypes)pkBuild->getImprovement());
+		if(pkImprovement == NULL || pkImprovement->IsCreatedByGreatPerson() || !pkImprovement->IsImprovementResourceTrade(eResource))
+		{
+			continue;
+		}
+		if(pkBuild->getTechPrereq() != NO_TECH && !pTeamTechs->HasTech((TechTypes)pkBuild->getTechPrereq()))
+		{
+			continue;
+		}
+		FeatureTypes eFeature = pPlot->getFeatureType();
+		if(eFeature != NO_FEATURE && pkBuild->isFeatureRemove(eFeature) && pkBuild->getFeatureTech(eFeature) != NO_TECH && !pTeamTechs->HasTech((TechTypes)pkBuild->getFeatureTech(eFeature)))
+		{
+			continue;
+		}
+		return true;
+	}
+	return false;
+}
+
+static bool HumanizedOwnsResourcePlot(CvPlayer* pPlayer, ResourceTypes eResource)
+{
+	const CvPlotsVector& aiPlots = pPlayer->GetPlots();
+	for(uint uiPlot = 0; uiPlot < aiPlots.size(); uiPlot++)
+	{
+		if(aiPlots[uiPlot] == -1)
+		{
+			continue;
+		}
+		CvPlot* pPlot = GC.getMap().plotByIndex(aiPlots[uiPlot]);
+		if(pPlot != NULL && pPlot->getResourceType(pPlayer->getTeam()) == eResource)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+static int HumanizedGrowthPlotValue(const CvPlot* pPlot, CvCity* pCity)
+{
+	TeamTypes eTeam = pCity->getTeam();
+	int iFood = pPlot->calculateNatureYield(YIELD_FOOD, eTeam);
+	int iProduction = pPlot->calculateNatureYield(YIELD_PRODUCTION, eTeam);
+	int iScience = pPlot->calculateNatureYield(YIELD_SCIENCE, eTeam);
+	ResourceTypes eResource = pPlot->getResourceType(eTeam);
+	if(eResource != NO_RESOURCE)
+	{
+		for(int iI = 0; iI < GC.getNumBuildingInfos(); iI++)
+		{
+			CvBuildingEntry* pkBuildingInfo = GC.getBuildingInfo((BuildingTypes)iI);
+			if(pkBuildingInfo != NULL && pCity->GetCityBuildings()->GetNumBuilding((BuildingTypes)iI) > 0)
+			{
+				iFood += pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_FOOD);
+				iProduction += pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_PRODUCTION);
+				iScience += pkBuildingInfo->GetResourceYieldChange(eResource, YIELD_SCIENCE);
+			}
+		}
+	}
+	if(!(iFood >= 2 && iFood + iProduction + iScience >= 3) && !(iFood >= 1 && iProduction >= 2))
+	{
+		return 0;
+	}
+	return 3 * iFood + 2 * iProduction + 2 * iScience + pPlot->calculateNatureYield(YIELD_GOLD, eTeam);
+}
+
+static bool HumanizedCityLacksGoodPlots(CvCity* pCity)
+{
+	CvCityCitizens* pCitizens = pCity->GetCityCitizens();
+	for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+	{
+		CvPlot* pLoopPlot = pCitizens->GetCityPlotFromIndex(iI);
+		if(pLoopPlot == NULL || pLoopPlot->isCity() || pLoopPlot->getOwner() != pCity->getOwner() || pCitizens->IsWorkingPlot(pLoopPlot) || !pCitizens->IsCanWork(pLoopPlot))
+		{
+			continue;
+		}
+		int iFood = pLoopPlot->getYield(YIELD_FOOD);
+		if(iFood >= 2 || iFood + pLoopPlot->getYield(YIELD_PRODUCTION) + pLoopPlot->getYield(YIELD_GOLD) >= 3)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool HumanizedBuyPlot(CvPlayer* pPlayer, bool bLuxury)
+{
+	if(pPlayer->isHuman() || pPlayer->isMinorCiv() || pPlayer->isBarbarian())
+	{
+		return false;
+	}
+	int iGold = pPlayer->GetTreasury()->GetGold();
+	int iReserve = 50 + 25 * (int)pPlayer->GetCurrentEra();
+	CvCity* pLoopCity = NULL;
+	int iLoop = 0;
+	if(bLuxury)
+	{
+		if(pPlayer->GetExcessHappiness() >= 3)
+		{
+			return false;
+		}
+		bool bGrowing = false;
+		for(pLoopCity = pPlayer->firstCity(&iLoop); pLoopCity != NULL && !bGrowing; pLoopCity = pPlayer->nextCity(&iLoop))
+		{
+			bGrowing = pLoopCity->foodDifference() > 0;
+		}
+		if(!bGrowing)
+		{
+			return false;
+		}
+	}
+	if(iGold <= iReserve)
+	{
+		return false;
+	}
+	int iRange = GC.getMAXIMUM_BUY_PLOT_DISTANCE();
+	int iBestScore = 0;
+	int iBestCost = 0;
+	CvCity* pBestCity = NULL;
+	CvPlot* pBestPlot = NULL;
+	for(pLoopCity = pPlayer->firstCity(&iLoop); pLoopCity != NULL; pLoopCity = pPlayer->nextCity(&iLoop))
+	{
+		if(!pLoopCity->CanBuyAnyPlot())
+		{
+			continue;
+		}
+		if(!bLuxury && (pLoopCity->foodDifference() <= 0 || !HumanizedCityLacksGoodPlots(pLoopCity)))
+		{
+			continue;
+		}
+		for(int iDX = -iRange; iDX <= iRange; iDX++)
+		{
+			for(int iDY = -iRange; iDY <= iRange; iDY++)
+			{
+				CvPlot* pLoopPlot = plotXYWithRangeCheck(pLoopCity->getX(), pLoopCity->getY(), iDX, iDY, iRange);
+				if(pLoopPlot == NULL || !pLoopCity->CanBuyPlot(pLoopPlot->getX(), pLoopPlot->getY(), true))
+				{
+					continue;
+				}
+				int iCost = pLoopCity->GetBuyPlotCost(pLoopPlot->getX(), pLoopPlot->getY());
+				if(iCost <= 0 || iGold - iCost < iReserve)
+				{
+					continue;
+				}
+				int iValue = 0;
+				if(bLuxury)
+				{
+					ResourceTypes eResource = pLoopPlot->getResourceType(pPlayer->getTeam());
+					CvResourceInfo* pkResource = (eResource != NO_RESOURCE) ? GC.getResourceInfo(eResource) : NULL;
+					if(pkResource == NULL || pkResource->getResourceUsage() != RESOURCEUSAGE_LUXURY || pPlayer->getNumResourceTotal(eResource) > 0 || HumanizedOwnsResourcePlot(pPlayer, eResource) || !HumanizedCanImproveLuxuryNow(pPlayer, pLoopPlot, eResource))
+					{
+						continue;
+					}
+					iValue = 10;
+				}
+				else
+				{
+					iValue = HumanizedGrowthPlotValue(pLoopPlot, pLoopCity);
+				}
+				int iScore = iValue * 1000 / iCost;
+				if(iScore > iBestScore && (bLuxury || iScore >= 100))
+				{
+					iBestScore = iScore;
+					iBestCost = iCost;
+					pBestCity = pLoopCity;
+					pBestPlot = pLoopPlot;
+				}
+			}
+		}
+	}
+	if(pBestPlot == NULL)
+	{
+		return false;
+	}
+	if(GC.getLogging() && GC.getAILogging())
+	{
+		FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
+		if(pLog)
+		{
+			CvString strLog;
+			ResourceTypes eResource = pBestPlot->getResourceType(pPlayer->getTeam());
+			strLog.Format("%03d, %s, %s, %s, %s, cost=%d, gold=%d, reserve=%d, happy=%d", GC.getGame().getElapsedGameTurns(), pPlayer->getCivilizationShortDescription(), bLuxury ? "buy luxury plot" : "buy growth plot",
+				pBestCity->getName().GetCString(), (eResource != NO_RESOURCE) ? GC.getResourceInfo(eResource)->GetType() : "none", iBestCost, iGold, iReserve, pPlayer->GetExcessHappiness());
+			pLog->Msg(strLog);
+		}
+	}
+	pBestCity->BuyPlot(pBestPlot->getX(), pBestPlot->getY());
+	return true;
+}
+
 /// Called every turn to see what Strategies this player should using (or not)
 void CvEconomicAI::DoTurn()
 {
@@ -819,7 +1017,10 @@ void CvEconomicAI::DoTurn()
 	if(!m_pPlayer->isHuman())
 	{
 		DoHurry();
-		DoBuildingPurchases();
+		if(!HumanizedBuyPlot(m_pPlayer, true) && !HumanizedBuyPlot(m_pPlayer, false))
+		{
+			DoBuildingPurchases();
+		}
 		DoPlotPurchases();
 		DisbandExtraWorkers();
 		DisbandExtraArchaeologists();
@@ -1926,62 +2127,6 @@ void CvEconomicAI::DoPlotPurchases()
 	if(m_pPlayer->isMinorCiv())
 	{
 		return;
-	}
-
-	if(!m_pPlayer->isHuman() && !m_pPlayer->isBarbarian())
-	{
-		int iReserve = 50 + 25 * (int)m_pPlayer->GetCurrentEra();
-		int iRange = GC.getMAXIMUM_BUY_PLOT_DISTANCE();
-		int iLuxCost = MAX_INT;
-		CvCity* pLuxCity = NULL;
-		CvPlot* pLuxPlot = NULL;
-		for(pLoopCity = m_pPlayer->firstCity(&iLoop); pLoopCity != NULL; pLoopCity = m_pPlayer->nextCity(&iLoop))
-		{
-			if(!pLoopCity->CanBuyAnyPlot())
-			{
-				continue;
-			}
-			for(int iDX = -iRange; iDX <= iRange; iDX++)
-			{
-				for(int iDY = -iRange; iDY <= iRange; iDY++)
-				{
-					CvPlot* pLoopPlot = plotXYWithRangeCheck(pLoopCity->getX(), pLoopCity->getY(), iDX, iDY, iRange);
-					if(pLoopPlot == NULL || !pLoopCity->CanBuyPlot(pLoopPlot->getX(), pLoopPlot->getY(), true))
-					{
-						continue;
-					}
-					ResourceTypes eResource = pLoopPlot->getResourceType(m_pPlayer->getTeam());
-					CvResourceInfo* pkResource = (eResource != NO_RESOURCE) ? GC.getResourceInfo(eResource) : NULL;
-					if(pkResource == NULL || pkResource->getResourceUsage() != RESOURCEUSAGE_LUXURY || m_pPlayer->getNumResourceTotal(eResource) > 0)
-					{
-						continue;
-					}
-					int iCost = pLoopCity->GetBuyPlotCost(pLoopPlot->getX(), pLoopPlot->getY());
-					if(iCost < iLuxCost)
-					{
-						iLuxCost = iCost;
-						pLuxCity = pLoopCity;
-						pLuxPlot = pLoopPlot;
-					}
-				}
-			}
-		}
-		if(pLuxPlot != NULL && m_pPlayer->GetTreasury()->GetGold() - iLuxCost >= iReserve)
-		{
-			if(GC.getLogging() && GC.getAILogging())
-			{
-				FILogFile* pLog = LOGFILEMGR.GetLog("HumanizedEconomyLog.csv", FILogFile::kDontTimeStamp);
-				if(pLog)
-				{
-					CvString strLog;
-					strLog.Format("%03d, %s, buy luxury plot, %s, %s, cost=%d, gold=%d, reserve=%d", GC.getGame().getElapsedGameTurns(), m_pPlayer->getCivilizationShortDescription(),
-						pLuxCity->getName().GetCString(), GC.getResourceInfo(pLuxPlot->getResourceType(m_pPlayer->getTeam()))->GetType(), iLuxCost, m_pPlayer->GetTreasury()->GetGold(), iReserve);
-					pLog->Msg(strLog);
-				}
-			}
-			pLuxCity->BuyPlot(pLuxPlot->getX(), pLuxPlot->getY());
-			return;
-		}
 	}
 
 	// No plot buying when at war
