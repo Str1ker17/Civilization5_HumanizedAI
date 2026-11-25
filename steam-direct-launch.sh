@@ -24,6 +24,7 @@ export SteamAppId=8930
 export SteamGameId=8930
 export STEAM_COMPAT_FLAGS=search-cwd
 export STEAM_COMPAT_PROTON=1
+export SteamEnv=1
 
 cd "$GAME" || exit 1
 exec "$SLR/_v2-entry-point" --verb=waitforexitandrun -- "$PROTON/proton" waitforexitandrun "$GAME/CivilizationV.exe"
