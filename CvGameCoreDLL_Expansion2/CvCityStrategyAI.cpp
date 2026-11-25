@@ -2279,7 +2279,16 @@ bool CityStrategyAIHelpers::IsTestCityStrategy_NeedTileImprovers(AICityStrategyT
 			return false;
 		// If we're losing at war, return false
 		if(kPlayer.GetDiplomacyAI()->GetStateAllWars() == STATE_ALL_WARS_LOSING)
-			return false;
+		{
+			bool bThreatened = kPlayer.isHuman();
+			int iLoop = 0;
+			for(CvCity* pLoopCity = kPlayer.firstCity(&iLoop); pLoopCity != NULL && !bThreatened; pLoopCity = kPlayer.nextCity(&iLoop))
+			{
+				bThreatened = kPlayer.GetPlotDanger(*pLoopCity->plot()) > 0;
+			}
+			if(bThreatened)
+				return false;
+		}
 		if(bBacklog)
 			return true;
 	}
