@@ -133,6 +133,8 @@ StorageLocation                            loadFileStorage();                   
 void                                       loadFromIni(FIGameIniParser& iniParser);
 bool                                       mapNoPlayers();
 unsigned int                               mapRandomSeed();
+unsigned int                               forcedSyncRandomSeed();
+unsigned int                               forcedMapRandomSeed();
 bool                                       loadWBScenario();
 bool                                       overrideScenarioHandicap();
 const CvString&                            mapScriptName();

@@ -262,6 +262,8 @@ PREGAMEVAR(std::vector<SlotClaim>,             s_slotClaims,             MAX_PLA
 PREGAMEVAR(std::vector<SlotStatus>,            s_slotStatus,             MAX_PLAYERS);
 PREGAMEVARDEFAULT(CvString,                           s_smtpHost);
 PREGAMEVAR(unsigned int,                       s_syncRandomSeed,         0);
+static unsigned int s_forcedSyncRandomSeed = 0;
+static unsigned int s_forcedMapRandomSeed = 0;
 PREGAMEVAR(int,                                s_targetScore,            0);
 PREGAMEVAR(std::vector<TeamTypes>,             s_teamTypes,              MAX_PLAYERS);
 PREGAMEVAR(bool,                               s_transferredMap,         false);
@@ -1579,6 +1581,13 @@ void loadFromIni(FIGameIniParser& iniParser)
 #ifdef SEED_LOGGING
 	SLOG("MapRandomSeed = %d", mapRandomSeed());
 #endif
+	iniParser.GetKeyValue("CONFIG", "ForceSyncRandSeed", &iHolder, "Sync seed a network game host uses at launch, or '0' for the engine seed", 0);
+	s_forcedSyncRandomSeed = iHolder;
+	iniParser.GetKeyValue("CONFIG", "ForceMapRandSeed", &iHolder, "Map seed a network game host uses at launch, or '0' for the engine seed", 0);
+	s_forcedMapRandomSeed = iHolder;
+#ifdef SEED_LOGGING
+	SLOG("ForceSyncRandSeed = %d, ForceMapRandSeed = %d", s_forcedSyncRandomSeed, s_forcedMapRandomSeed);
+#endif
 #endif
 
 	//	Game Type
@@ -1668,7 +1677,17 @@ bool SetMapOptions(const std::vector<CustomOption>& mapOptions)
 
 unsigned int mapRandomSeed()
 {
-	return s_mapRandomSeed;
+	return (s_forcedMapRandomSeed != 0) ? s_forcedMapRandomSeed : s_mapRandomSeed;
+}
+
+unsigned int forcedSyncRandomSeed()
+{
+	return s_forcedSyncRandomSeed;
+}
+
+unsigned int forcedMapRandomSeed()
+{
+	return s_forcedMapRandomSeed;
 }
 
 bool loadWBScenario()
@@ -4074,7 +4093,7 @@ void StringToBools(const char* szString, int* iNumBools, bool** ppBools)
 }
 unsigned int syncRandomSeed()
 {
-	return s_syncRandomSeed;
+	return (s_forcedSyncRandomSeed != 0) ? s_forcedSyncRandomSeed : s_syncRandomSeed;
 }
 
 int targetScore()
