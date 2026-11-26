@@ -1213,13 +1213,42 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 	if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && !(kPlayer.calculateGoldRate() < 0 && kPlayer.GetTreasury()->GetGold() + 15 * kPlayer.calculateGoldRate() < 0))
 	{
 		bool bAnyBuilding = false;
-		for(int iI = 0; iI < m_Buildables.size() && !bAnyBuilding; iI++)
+		int iBestProcess = 0;
+		for(int iI = 0; iI < m_Buildables.size(); iI++)
 		{
 			const CvCityBuildable& kBuilding = m_Buildables.GetElement(iI);
 			if(kBuilding.m_eBuildableType == CITY_BUILDABLE_BUILDING && m_Buildables.GetWeight(iI) > 0)
 			{
-				CvBuildingEntry* pkBuildingEntry = GC.getBuildingInfo((BuildingTypes)kBuilding.m_iIndex);
-				bAnyBuilding = pkBuildingEntry && !isWorldWonderClass(pkBuildingEntry->GetBuildingClassInfo());
+				bAnyBuilding = true;
+			}
+			else if(kBuilding.m_eBuildableType == CITY_BUILDABLE_PROCESS)
+			{
+				iBestProcess = std::max(iBestProcess, m_Buildables.GetWeight(iI));
+			}
+		}
+		if(!bAnyBuilding && iBestProcess > 0 && kPlayer.GetPlotDanger(*GetCity()->plot()) == 0 && !GC.getGame().isOption("GAMEOPTION_AI_TWEAKS"))
+		{
+			int iFewestTurns = 51;
+			CvCityBuildable kWonder;
+			for(int iI = 0; iI < GC.GetGameBuildings()->GetNumBuildings(); iI++)
+			{
+				CvBuildingEntry* pkWonderInfo = GC.getBuildingInfo((BuildingTypes)iI);
+				if(pkWonderInfo && iI != eIgnoreBldg && isWorldWonderClass(pkWonderInfo->GetBuildingClassInfo()) && m_pCity->canConstruct((BuildingTypes)iI))
+				{
+					int iTurns = GetCity()->getProductionTurnsLeft((BuildingTypes)iI, 0);
+					if(iTurns < iFewestTurns)
+					{
+						iFewestTurns = iTurns;
+						kWonder.m_eBuildableType = CITY_BUILDABLE_BUILDING;
+						kWonder.m_iIndex = iI;
+						kWonder.m_iTurnsToConstruct = iTurns;
+					}
+				}
+			}
+			if(iFewestTurns <= 50)
+			{
+				m_Buildables.push_back(kWonder, iBestProcess + 1);
+				bAnyBuilding = true;
 			}
 		}
 		for(int iI = 0; iI < m_Buildables.size() && bAnyBuilding; iI++)
