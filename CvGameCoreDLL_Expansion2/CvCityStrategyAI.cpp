@@ -1092,7 +1092,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 				CvUnitEntry* pkUnitEntry = GC.getUnitInfo((UnitTypes)iUnitLoop);
 				if(pkUnitEntry && pkUnitEntry->GetDefaultUnitAIType() == UNITAI_SETTLE)
 				{
-					if(bEnoughSettlers)
+					if(bEnoughSettlers || (!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && GetCity()->getPopulation() < (GetCity()->isCapital() ? 3 : 5)))
 					{
 						iTempWeight = 0;
 					}
