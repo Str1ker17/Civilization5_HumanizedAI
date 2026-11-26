@@ -249,6 +249,41 @@ int CvPolicyAI::ChooseNextPolicy(CvPlayer* pPlayer)
 		}
 	}
 
+	if(!bMustChooseTenet && !pPlayer->isHuman() && !pPlayer->isMinorCiv() && !pPlayer->isBarbarian())
+	{
+		PolicyBranchTypes eTradition = (PolicyBranchTypes)GC.getInfoTypeForString("POLICY_BRANCH_TRADITION", true);
+		PolicyBranchTypes eHonor = (PolicyBranchTypes)GC.getInfoTypeForString("POLICY_BRANCH_HONOR", true);
+		CvPlayerPolicies* pPlayerPolicies = pPlayer->GetPlayerPolicies();
+		if(eTradition != NO_POLICY_BRANCH_TYPE && pPlayerPolicies->IsPolicyBranchUnlocked(eTradition) && !pPlayerPolicies->IsPolicyBranchFinished(eTradition))
+		{
+			bool bHonorWanted = eHonor != NO_POLICY_BRANCH_TYPE && !GC.getGame().isOption(GAMEOPTION_NO_BARBARIANS) && !pPlayerPolicies->IsPolicyBranchUnlocked(eHonor);
+			bool bHonorListed = false;
+			bool bTraditionListed = false;
+			for(int iI = 0; iI < m_AdoptablePolicies.size(); iI++)
+			{
+				int iItem = m_AdoptablePolicies.GetElement(iI);
+				if(iItem == (int)eHonor)
+				{
+					bHonorListed = true;
+				}
+				else if(iItem >= GC.getNumPolicyBranchInfos() && m_pCurrentPolicies->GetPolicies()->GetPolicyEntry(iItem - GC.getNumPolicyBranchInfos())->GetPolicyBranchType() == (int)eTradition)
+				{
+					bTraditionListed = true;
+				}
+			}
+			bool bHonorNow = bHonorWanted && bHonorListed;
+			if(bHonorNow || bTraditionListed)
+			{
+				for(int iI = 0; iI < m_AdoptablePolicies.size(); iI++)
+				{
+					int iItem = m_AdoptablePolicies.GetElement(iI);
+					bool bKeep = bHonorNow ? (iItem == (int)eHonor) : (iItem >= GC.getNumPolicyBranchInfos() && m_pCurrentPolicies->GetPolicies()->GetPolicyEntry(iItem - GC.getNumPolicyBranchInfos())->GetPolicyBranchType() == (int)eTradition);
+					m_AdoptablePolicies.SetWeight(iI, bKeep ? std::max(1, m_AdoptablePolicies.GetWeight(iI)) : 0);
+				}
+			}
+		}
+	}
+
 	m_AdoptablePolicies.SortItems();
 	LogPossiblePolicies();
 
