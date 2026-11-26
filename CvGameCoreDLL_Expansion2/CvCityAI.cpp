@@ -81,27 +81,6 @@ void CvCityAI::AI_doTurn()
 	}
 }
 
-static bool HumanizedWonderCityReady(CvCity* pCity, CvPlayer& kOwner)
-{
-	if(kOwner.isHuman() || kOwner.isMinorCiv() || GC.getGame().getElapsedGameTurns() >= 100)
-	{
-		return true;
-	}
-	if(kOwner.GetNumUnitsWithUnitAI(UNITAI_WORKER, true, false) < kOwner.getNumCities())
-	{
-		return false;
-	}
-	for(int iI = 0; iI < GC.getNumBuildingInfos(); iI++)
-	{
-		CvBuildingEntry* pkBuildingInfo = GC.getBuildingInfo((BuildingTypes)iI);
-		if(pkBuildingInfo && pCity->GetCityBuildings()->GetNumBuilding((BuildingTypes)iI) > 0 && pkBuildingInfo->AllowsFoodTradeRoutes())
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
 bool HumanizedWonderAllowed(CvCity* pCity, BuildingTypes eWonder)
 {
 	CvPlayer& kOwner = GET_PLAYER(pCity->getOwner());
@@ -109,7 +88,7 @@ bool HumanizedWonderAllowed(CvCity* pCity, BuildingTypes eWonder)
 	{
 		return true;
 	}
-	if(!HumanizedWonderCityReady(pCity, kOwner) || pCity->getProductionTurnsLeft(eWonder, 0) > 15)
+	if(pCity->getProductionTurnsLeft(eWonder, 0) > 15)
 	{
 		return false;
 	}
