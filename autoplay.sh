@@ -33,7 +33,7 @@ if [ -n "$SLOT" ]; then
 fi
 XVFB_DISPLAY=${XVFB_DISPLAY:-:99}
 if [ -n "$SLOT" ] && [ -z "${XVFB_ENV+x}" ]; then
-	XVFB_ENV="MESA_VK_WSI_DEBUG=sw DXVK_CONFIG=d3d9.presentInterval=0 WINEDLLOVERRIDES=winepulse.drv=d"
+	XVFB_ENV="MESA_VK_WSI_DEBUG=sw DXVK_CONFIG=d3d9.presentInterval=0 WINEDLLOVERRIDES=winepulse.drv=d;winealsa.drv=d"
 fi
 XVFB_ENV=${XVFB_ENV:-MESA_VK_WSI_DEBUG=sw DXVK_CONFIG=d3d9.presentInterval=0}
 ENVFILE=$HOME/snap/steam/common/civ5-autoplay.env
