@@ -801,7 +801,7 @@ int CvCitySiteEvaluator::ComputeHappinessValue(CvPlot* pPlot, CvPlayer* pPlayer)
 		if(pPlayer)
 		{
 			if(pPlayer->getNumResourceTotal(eResource) == 0)
-				rtnValue *= 5;
+				rtnValue *= (pPlayer->isHuman() || pPlayer->isMinorCiv()) ? 5 : 10;
 		}
 	}
 
