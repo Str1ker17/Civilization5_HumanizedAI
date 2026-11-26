@@ -2278,6 +2278,16 @@ int CvBuilderTaskingAI::ScorePlot()
 	if(!m_pPlayer->isHuman() && m_pTargetPlot->isBeingWorked())
 	{
 		iScore *= 3;
+		int iBare = 0;
+		for(int iI = 0; iI < NUM_CITY_PLOTS; iI++)
+		{
+			CvPlot* pCityPlot = pCity->GetCityCitizens()->GetCityPlotFromIndex(iI);
+			if(pCityPlot != NULL && pCityPlot != pCity->plot() && !pCityPlot->isWater() && pCityPlot->getWorkingCity() == pCity && pCityPlot->isBeingWorked() && pCityPlot->getImprovementType() == NO_IMPROVEMENT)
+			{
+				iBare++;
+			}
+		}
+		iScore *= 1 + std::min(iBare, 4);
 	}
 	else if (pCity->IsOriginalCapital()) // this was a particularly good city and needs a little emphasis
 	{
