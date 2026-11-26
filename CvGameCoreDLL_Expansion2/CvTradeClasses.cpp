@@ -4596,7 +4596,7 @@ void CvTradeAI::PrioritizeTradeRoutes(TradeConnectionList& aTradeConnectionList)
 			}
 			if(kConnection.m_eConnectionType == TRADE_CONNECTION_FOOD && aiGrowthRoom[uiCity] > 0)
 			{
-				kElement.m_iScore = 1000 + 50 * min(aiGrowthRoom[uiCity], 8) - 100 * aiRoutesIn[uiCity] + iBase;
+				kElement.m_iScore = 1000 + 40 * min(aiGrowthRoom[uiCity], 8) - 60 * pDestCity->getPopulation() - 100 * aiRoutesIn[uiCity] + iBase;
 			}
 			else if(kConnection.m_eConnectionType == TRADE_CONNECTION_PRODUCTION && aiGrowthRoom[uiCity] == 0 && aiBuildingTurns[uiCity] >= 30)
 			{
