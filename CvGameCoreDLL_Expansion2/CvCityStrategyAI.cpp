@@ -1026,6 +1026,11 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 				}
 			}
 
+			if(iTempWeight > 0 && !kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && !isWorldWonderClass(pkBuildingInfo->GetBuildingClassInfo()) && buildable.m_iTurnsToConstruct > 20)
+			{
+				iTempWeight = iTempWeight * 20 / buildable.m_iTurnsToConstruct;
+			}
+
 			// If the City is a puppet, it avoids Wonders (because the human can't change it if he wants to build it somewhere else!)
 			if(GetCity()->IsPuppet())
 			{
