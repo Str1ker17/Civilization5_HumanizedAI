@@ -22,7 +22,7 @@ function HumanizedChatPlotTag()
 	local tag = string.format( "%d,%d", x, y );
 	if plot:IsCity() and plot:IsRevealed( team, false ) then
 		local city = plot:GetPlotCity();
-		tag = tag .. " " .. Locale.ConvertTextKey( city:GetNameKey() ) .. " (" .. PlayerName( city:GetOwner() ) .. ")";
+		tag = tag .. " " .. Locale.ConvertTextKey( city:GetNameKey() ) .. ", " .. PlayerName( city:GetOwner() );
 	elseif plot:IsVisible( team, false ) then
 		for i = 0, plot:GetNumUnits() - 1 do
 			local unit = plot:GetUnit( i );
@@ -33,7 +33,7 @@ function HumanizedChatPlotTag()
 		end
 	end
 	ChatLog( "tag " .. tag );
-	return "[" .. tag .. "] ";
+	return "(" .. tag .. ") ";
 end
 
 local function Record( prefix, countKey, turn, fromPlayer, text )
