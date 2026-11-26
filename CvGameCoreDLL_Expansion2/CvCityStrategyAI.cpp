@@ -1210,6 +1210,27 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 
 	ReweightByCost();
 
+	if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && !(kPlayer.calculateGoldRate() < 0 && kPlayer.GetTreasury()->GetGold() + 15 * kPlayer.calculateGoldRate() < 0))
+	{
+		bool bAnyBuilding = false;
+		for(int iI = 0; iI < m_Buildables.size() && !bAnyBuilding; iI++)
+		{
+			const CvCityBuildable& kBuilding = m_Buildables.GetElement(iI);
+			if(kBuilding.m_eBuildableType == CITY_BUILDABLE_BUILDING && m_Buildables.GetWeight(iI) > 0)
+			{
+				CvBuildingEntry* pkBuildingEntry = GC.getBuildingInfo((BuildingTypes)kBuilding.m_iIndex);
+				bAnyBuilding = pkBuildingEntry && !isWorldWonderClass(pkBuildingEntry->GetBuildingClassInfo());
+			}
+		}
+		for(int iI = 0; iI < m_Buildables.size() && bAnyBuilding; iI++)
+		{
+			if(m_Buildables.GetElement(iI).m_eBuildableType == CITY_BUILDABLE_PROCESS)
+			{
+				m_Buildables.SetWeight(iI, 0);
+			}
+		}
+	}
+
 	if(!kPlayer.isHuman() && !kPlayer.isMinorCiv() && !kPlayer.isBarbarian() && kPlayer.GetTrade()->GetNumTradeRoutesRemaining(false) > 0 && GC.getGame().HumanizedHasQuest(kPlayer.GetID(), MINOR_CIV_QUEST_TRADE_ROUTE))
 	{
 		int iBestOther = 0;
