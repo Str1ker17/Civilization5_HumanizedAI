@@ -6206,6 +6206,30 @@ bool CvGame::HumanizedHasQuest(PlayerTypes eMajor, int iQuest) const
 	return false;
 }
 
+bool CvGame::HumanizedArmyTooCostly(PlayerTypes ePlayer) const
+{
+	CvPlayer& kPlayer = GET_PLAYER(ePlayer);
+	if(kPlayer.isHuman() || kPlayer.isMinorCiv() || kPlayer.isBarbarian())
+	{
+		return false;
+	}
+	int iGross = kPlayer.GetTreasury()->CalculateGrossGold();
+	int iUnits = kPlayer.GetTreasury()->GetExpensePerTurnUnitMaintenance();
+	if(iUnits * 100 <= 40 * std::max(1, iGross))
+	{
+		return false;
+	}
+	int iLoop = 0;
+	for(CvCity* pLoopCity = kPlayer.firstCity(&iLoop); pLoopCity != NULL; pLoopCity = kPlayer.nextCity(&iLoop))
+	{
+		if(kPlayer.GetPlotDanger(*pLoopCity->plot()) > 0)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 bool CvGame::HumanizedAnyLivingHuman() const
 {
 	for(int iI = 0; iI < MAX_MAJOR_CIVS; iI++)

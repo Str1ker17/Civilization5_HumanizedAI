@@ -3386,8 +3386,9 @@ void CvMilitaryAI::DisbandObsoleteUnits()
 	int iNavalScore = MAX_INT;
 	int iLandScore = MAX_INT;
 
-	// Don't do this if at war
-	if(GetNumberCivsAtWarWith() > 0)
+	// Don't do this if at war, unless the army costs too much
+	bool bArmyTooCostly = GC.getGame().HumanizedArmyTooCostly(m_pPlayer->GetID());
+	if(GetNumberCivsAtWarWith() > 0 && !bArmyTooCostly)
 	{
 		return;
 	}
@@ -3406,7 +3407,7 @@ void CvMilitaryAI::DisbandObsoleteUnits()
 	int iAverageGoldPerUnit = iGoldSpentOnUnits / (max(1,m_pPlayer->getNumUnits()));
 
 	// if our units maintenance cost is high we may want to scrap some obsolete stuff
-	bInDeficit = bInDeficit || iAverageGoldPerUnit > 5;
+	bInDeficit = bInDeficit || iAverageGoldPerUnit > 5 || bArmyTooCostly;
 
 	// Are we running anything other than the Conquest Grand Strategy?
 	AIGrandStrategyTypes eConquestGrandStrategy = (AIGrandStrategyTypes) GC.getInfoTypeForString("AIGRANDSTRATEGY_CONQUEST");

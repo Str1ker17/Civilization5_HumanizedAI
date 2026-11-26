@@ -1073,6 +1073,7 @@ void CvCityStrategyAI::ChooseProduction(bool bUseAsyncRandom, BuildingTypes eIgn
 			int iRate = kPlayer.calculateGoldRate();
 			bArmyTooExpensive = iRate < 0 && kPlayer.GetTreasury()->GetGold() + 10 * iRate < 0;
 		}
+		bArmyTooExpensive = bArmyTooExpensive || GC.getGame().HumanizedArmyTooCostly(kPlayer.GetID());
 
 		// Loop through adding the available units
 		for(iUnitLoop = 0; iUnitLoop < GC.GetGameUnits()->GetNumUnits(); iUnitLoop++)
