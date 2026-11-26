@@ -11840,7 +11840,8 @@ void CvDiplomacyAI::DoContactMinorCivs()
 	        IsGoingForCultureVictory() ||
 	        GetPlayer()->GetEconomicAI()->IsSavingForThisPurchase(PURCHASE_TYPE_MINOR_CIV_GIFT) ||
 	        IsHasActiveGoldQuest() ||
-	        m_pPlayer->calculateGoldRate() > 100) // if we are very wealthy always do this
+	        m_pPlayer->calculateGoldRate() > 100 || // if we are very wealthy always do this
+	        (!m_pPlayer->isHuman() && m_pPlayer->GetTreasury()->GetGold() >= 300 + 25 * (int)m_pPlayer->GetCurrentEra()))
 	{
 		bWantsToMakeGoldGift = true;
 	}
