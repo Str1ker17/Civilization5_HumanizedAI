@@ -315,7 +315,7 @@ void CvCityCitizens::DoTurn()
 				bInDeficit = thisPlayer.GetEconomicAI()->IsUsingStrategy(eStrategyLosingMoney);
 			}
 
-			if(bInDeficit)
+			if(bInDeficit && thisPlayer.calculateGoldRate() < 0 && thisPlayer.GetTreasury()->GetGold() + 15 * thisPlayer.calculateGoldRate() < 0)
 			{
 				SetFocusType(CITY_AI_FOCUS_TYPE_GOLD_GROWTH);
 				SetNoAutoAssignSpecialists(false);
